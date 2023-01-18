@@ -371,8 +371,6 @@ function get_data_new_z_tfunc(var, varg, z_new, z_dim, time_dim; z_old=nothing, 
     return vardata
 end
 
-
-
 # =================== #
 
 
