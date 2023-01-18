@@ -1,0 +1,12 @@
+name = "SOCRATES_Single_Column_Forcings"
+authors = ["me"]
+
+[deps]
+Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
+
+[compat]
+Thermodynamics = "0.9, 0.10"
+UnPack = "1.0"
+NCDatasets
+julia = "1.5"
+
