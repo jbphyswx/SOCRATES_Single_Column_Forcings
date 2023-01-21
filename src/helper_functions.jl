@@ -13,7 +13,6 @@ using .SOCRATES_Single_Column_Forcings: grid_heights # is there a way to automat
 # this feels like a lot to import and have in the project file, should i copy over and write my own parameters?
 # can't even use the latest thermodynamics versino which i have local with that import...
 # Pkg.develop(path="/home/jbenjami/Research_Schneider/CliMa/TurbulenceConvection.jl")
-# @show(SOCRATES_Single_Column_Forcings)
 
 # const TCP = SOCRATES_Single_Column_Forcings.TCP
 param_set = SOCRATES_Single_Column_Forcings.Parameters.param_set
@@ -29,7 +28,6 @@ default_new_z = collect(0:100:0000) # for testing case
 
 #= Simple linear interpolation function, wrapping Dierckx (copied from TC.jl)  =#
 function pyinterp(x, xp, fp)
-    # @show(x,xp,fp)
     spl = Dierckx.Spline1D(xp, fp; k = 1)
     return spl(vec(x))
 end
@@ -69,6 +67,15 @@ function align_along_dimension(v,dim)
     return v
 end
 
+function add_dim(vardata, dimnum)
+    """
+    Allows you to add a dimension to a variable at the specified location
+    """
+    # both data need to be labeled
+    sz_vardata = collect(size(vardata)) # array
+    insert!(sz_vardata,dimnum,1) # insert sz 1 at this location 
+    return reshape(vardata, sz_vardata...) # reshape
+end
 
 function data_to_tsg(data; param_set=param_set)
     """
@@ -103,8 +110,6 @@ function data_to_ts(data; do_combine_air_and_ground_data=false, param_set=param_
 
     ts = TD.PhaseEquil_pTq.(thermo_params, p, T, q)
 
-    # @show(size(T),size(q),size(p),size(ts),"data_to_ts")
-
     if do_combine_air_and_ground_data
         concat_dim = get_dim_num("lev", T) # phaseequil reduces us down to lev... can't seem to just apply ufunc...
         tsg = data_to_tsg(data;param_set=param_set)
@@ -124,6 +129,7 @@ function lev_to_z( p::FT, T::FT, q::FT, pg::FT, Tg::FT, qg::FT; param_set=param_
     return lev_to_z(ts, tsg; data=data)
 end
 
+
 function lev_to_z(ts, tsg; param_set=param_set, data=data )
     """
     ts is thermodynamic state
@@ -138,7 +144,6 @@ function lev_to_z(ts, tsg; param_set=param_set, data=data )
     ldn         = lev_dim_num
     L           = size(ts,lev_dim_num)
 
-    # @show(size(ts), size(tsg), ldn)
     # tsz       = cat(ts,tsg;dims=ldn)
     tsz       = combine_air_and_ground_data(ts,tsg,ldn;data=data,reshape_ground=true)
 
@@ -178,8 +183,6 @@ function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape
     vardatag   = isa(varg,String) ? data[varg] : varg
     concat_dim = isa(concat_dim,String) ? get_dim_num(concat_dim, vardata) : concat_dim # string to numbers
 
-    # @show(size(vardata),size(vardatag), concat_dim)
-
     # handle the ground data alignment
     if reshape_ground
         if isa(vardatag, Number) # allow for you to pass a single number and still concat
@@ -187,23 +190,34 @@ function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape
             sz_vardatag[concat_dim] = 1
             vardatag = fill(vardatag, sz_vardatag... ) # create array full with just this one value
         elseif isa(vardatag, NC.CFVariable) # vardatag should not have lev as a dimension so we need to add it in (and I guess check the others are in the same order)
-            # @show(size(vardatag))
             dimnamesg = NC.dimnames(vardatag)
             dimnames  = NC.dimnames(vardata)
             # in same order as vardata just in case
             vardatag = reshape(vardatag, (size(vardatag)...,1)) # add trailing singleton for lev
             dimnamesg = [dimnamesg..., "lev"]
             vardatag = permutedims(vardatag, [findfirst(x->x==dim,dimnames) for dim in dimnamesg] ) # permute into the right order
-            # @show(size(vardatag))
         elseif isa(vardatag, AbstractArray) # an unlabeled array, i think we can't guarantee then that the lev axis exists at all or what existing dimensions are so this just assumes everything is correct except the lev dimension being there
             # assume we need to add a new dimension at the same location as in the full array and order otherwise is preserved (quick check looks ok)
             sz_vardatag = collect(size(vardatag)) # array
-            insert!(sz_vardatag,concat_dim,1) # insert sz 1 at this location 
-            vardatag =  reshape(vardatag, sz_vardatag...) # reshape (just adds the singleton dimension in)
+            if ndims(vardatag) == (ndims(vardata)-1)
+                insert!(sz_vardatag,concat_dim,1) # insert sz 1 at this location 
+                vardatag =  reshape(vardatag, sz_vardatag...) # reshape (just adds the singleton dimension in)
+            elseif ndims(vardatag) != ndims(vardata)
+                error("size mismath, var and varg should have the same number of dimensions or one less (for a missing lev dimension)")
+            end
         end
     end
 
-    # @show(size(vardata),size(vardatag), concat_dim)
+    # broadcast out to match sizes except for concat dim
+    sz_vardata  = collect(size(vardata)) # array
+    sz_vardatag = collect(size(vardatag)) # array
+    num_repeat  = sz_vardatag .÷ sz_vardata # integer division
+    num_repeatg = sz_vardata .÷ sz_vardata # integer division
+    num_repeat[ concat_dim] = 1 # don't repeat along concat dim
+    num_repeatg[concat_dim] = 1 # don't repeat along concat dim
+    vardatag = repeat(vardatag, num_repeatg...)
+    vardata  = repeat(vardata , num_repeat...)
+
     vardata = cat(vardata,vardatag;dims=concat_dim)
     return vardata
 end
@@ -263,8 +277,6 @@ function interp_along_dim(var, interp_dim, interp_dim_in; interp_dim_out=nothing
     if !isnothing(data_func) # apply data_func if we need to
         vardata  = data_func(vardata)
     end
-
-    # @show(interp_dim_in_is_full_array, (size(interp_dim_in),size(vardata)), (size(interp_dim_in)==size(vardata)))
  
     # mapslices to apply along timedim, see https://docs.julialang.org/en/v1/base/arrays/#Base.mapslices
     if !interp_dim_in_is_full_array
@@ -319,7 +331,7 @@ function var_to_new_coord(var,coord_in, interp_dim; coord_new=nothing, data=noth
 end
 
 
-function get_data_new_z_tfunc(var, varg, z_new, z_dim, time_dim; z_old=nothing, t_old=nothing, data=nothing, param_set=param_set, initial_condition = false)
+function get_data_new_z_t(var, z_new, z_dim, time_dim; varg=nothing, z_old=nothing, t_old=nothing, data=nothing, param_set=param_set, initial_condition = false)
     """
     Take data from our base setup, interpolate it to new z, then create time splines based on the t we have....
     to vectorize properly over z_new, it should be the same shape as vardata+vardata_g
@@ -327,7 +339,9 @@ function get_data_new_z_tfunc(var, varg, z_new, z_dim, time_dim; z_old=nothing, 
 
     # get the data and dimensions we're working on, 
     vardata    = isa(var ,String) ? data[var ] : var
-    vardatag   = isa(varg,String) ? data[varg] : varg
+    if ~isnothing(varg)
+        vardatag   = isa(varg,String) ? data[varg] : varg
+    end
 
     # combine air and ground data
     if ~isnothing(data)
@@ -348,7 +362,9 @@ function get_data_new_z_tfunc(var, varg, z_new, z_dim, time_dim; z_old=nothing, 
         t_old = data["tsec"][:] # check this unit was right in the files
     end
 
-    vardata = combine_air_and_ground_data(vardata, vardatag, z_dim_num) # append ground data with 0 as z bottom, loses labeling now though  (this puts a lot of faith im these 2 vars being the same size of having labels which we can't guarantee, no?)
+    if ~isnothing(varg)
+        vardata = combine_air_and_ground_data(vardata, vardatag, z_dim_num) # append ground data with 0 as z bottom, loses labeling now though  (this puts a lot of faith im these 2 vars being the same size of having labels which we can't guarantee, no?)
+    end
 
     # select only the first timestep, but keep that dimension around w/ []
     if initial_condition
@@ -362,23 +378,22 @@ function get_data_new_z_tfunc(var, varg, z_new, z_dim, time_dim; z_old=nothing, 
 
     # interpolate to new z
     vardata = var_to_new_coord(vardata, z_old,    z_dim_num; coord_new=z_new  , data=data)
-    if initial_condition # no need to push further here since is init condition
+    if initial_condition # no need to push further here since is init condition (maybe change later to return both?)
         return vardata
     end
     # create new time splines
-    vardata_init = var_to_new_coord(vardata, t_old, time_dim_num; coord_new=nothing, data=data)
+    vardata = var_to_new_coord(vardata, t_old, time_dim_num; coord_new=nothing, data=data)
 
     return vardata
 end
 
 # =================== #
 
-
 function main()
     data = load_data()
     nothing
  end
- 
+
 
  if abspath(PROGRAM_FILE) == @__FILE__
      main()
@@ -391,7 +406,7 @@ function main()
     data = data[:obs_data]
 
 
-    T_new_z_one_shot = get_data_new_z_tfunc("T", "Tg", new_z,"lev","time", data=data, param_set=param_set)
-    T_new_z_initial  = get_data_new_z_tfunc("T", "Tg", new_z,"lev","time", data=data, param_set=param_set,  initial_condition=true)
+    T_new_z_t     = get_data_new_z_t("T", "Tg", new_z,"lev","time", data=data, param_set=param_set)
+    T_new_z_init  = get_data_new_z_t("T", "Tg", new_z,"lev","time", data=data, param_set=param_set,  initial_condition=true)
 
 end
