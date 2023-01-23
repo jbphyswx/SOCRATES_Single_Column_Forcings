@@ -27,4 +27,4 @@ The remainder of the properties are always taken from the ERA5 based Atlas input
 
 
 
-Once this is finalized, perhaps the relevant parts can be ported to `CliMa/AtmosphericProfilesLibrary.jl` (TC.jl as is doesn't access this repo)
+Once this is finalized, perhaps the relevant parts can be ported to `CliMa/AtmosphericProfilesLibrary.jl` (`CliMa/TurbulenceConvection.jl` as is doesn't access this repo)
