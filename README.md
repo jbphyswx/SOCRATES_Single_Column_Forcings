@@ -24,3 +24,7 @@ The model returns forcings ` dTdt_hadv, H_nudge, dqtdt_hadv, qt_nudge, subsidenc
 `H_nudge` and `qt_nudge` are taken from your choice of forcings and represent relaxation of the thermal profile (liquid-ice potential temperature) and total moisture respectively
 
 The remainder of the properties are always taken from the ERA5 based Atlas inputs.
+
+
+
+Once this is finalized, perhaps the relevant parts can be ported to CliMa/AtmosphericProfilesLibrary.jl (TC.jl as is doesn't access this repo)
