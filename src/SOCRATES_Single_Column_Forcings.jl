@@ -4,7 +4,8 @@ module SOCRATES_Single_Column_Forcings
 THIS_DIR="/home/jbenjami/Research_Schneider/CliMa/SOCRATES_Single_Column_Forcings.jl";
 empty!(DEPOT_PATH); push!(DEPOT_PATH,THIS_DIR*"/.julia_depot"); 
 using Pkg
-Pkg.develop(path="/home/jbenjami/Research_Schneider/CliMa/Thermodynamics.jl")
+# Pkg.develop(path="/home/jbenjami/Research_Schneider/CliMa/Thermodynamics.jl") # do i still need this?
+Pkg.add(url="https://github.com/CliMA/Thermodynamics.jl#jb/non_eq_moisture")
 import Thermodynamics as TD
 import NCDatasets as NC
 using DelimitedFiles
