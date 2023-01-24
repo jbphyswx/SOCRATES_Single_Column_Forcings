@@ -1,6 +1,6 @@
 param_set = SOCRATES_Single_Column_Forcings.Parameters.param_set
 
-function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::String, new_z::Union{Nothing,AbstractArray}=nothing, initial_condition::Bool=false, param_set=param_set)
+function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symbol}, new_z::Union{Nothing,AbstractArray}=nothing, initial_condition::Bool=false, param_set=param_set)
     """
     Processes the flight data for that case
     If new_z is not specified, will use Rachel Atlas default grid
@@ -23,7 +23,9 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::String, new_z::Un
     elseif obs_or_ERA5 == "ERA5"
         forcing = :ERA5_data
     else
-        error("obs_or_ERA5 must be either 'Obs' or 'ERA5'")
+        if obs_or_ERA5 ∉ [:obs_data, :ERA5_data]
+            error("obs_or_ERA5 must be either \"Obs\"/[:obs_data] or \"ERA5\"/[:ERA5_data]")
+        end
     end
 
     # specify our action dimensions

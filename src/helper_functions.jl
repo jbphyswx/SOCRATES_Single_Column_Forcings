@@ -387,6 +387,34 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim; varg=nothing, z_old=nothi
     return vardata
 end
 
+
+
+function drop_lat_lon(vardata; data=nothing, dims=nothing)
+    # gotta do this at the end after we've made full use of our dimnames since our data is unlabeled
+    # in general we could cheat in the future since the socrates order seems to always be lon lat lev time regardless of which dims exist...
+    # i guess i also don't know what happens if we've turned the time dim into just a fcn -- in principle it's last so that shouldnt hurt
+
+    if isnothing(dims)
+        dims = tuple(collect(findfirst(x->x==dim,NC.dimnames(data["T"])) for dim in ["lat","lon"] )...) # base off temperature for now
+    end
+
+    vardata = dropdims(vardata, dims = dims)
+    return vardata
+end
+
+function insert_dims(data, ind; new_dim_sizes=[-1])
+    """
+    add in new dimensions at position (never seemed to use , could get rid of this?)
+    """
+    sz_data = collect(size(data)) # array
+    # insert!(sz_data,ind, new_dim_sizes[1]) # insert sz 1 at this location # can only do one dim
+    splice!(sz_data,ind, [ new_dim_sizes..., sz_data[ind]]) # do this way cause splice itself deletes the current value so preserve it
+    data =  reshape(data, sz_data...) # reshape
+end
+
+
+
+
 # =================== #
 
 function main()

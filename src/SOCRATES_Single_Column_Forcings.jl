@@ -13,12 +13,13 @@ using Dierckx
 # import .Parameters as TCP
 
 
-
 # include our files
 include("Parameters.jl")
 using .Parameters
 const TCP = SOCRATES_Single_Column_Forcings.Parameters # import doesnt seem to work (has to go first to expose this to the other files)
 FT = Float64
+flight_numbers = [1, 9, 10, 11, 12 ,13]
+forcing_types  = [:obs_data, :ERA5_data]
 
 include("../Data/Atlas_LES_Profiles/download_atlas_les_profiles.jl")
 include("../Data/Atlas_LES_Profiles/open_atlas_les_profiles.jl")
