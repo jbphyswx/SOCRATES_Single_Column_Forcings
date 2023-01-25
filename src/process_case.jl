@@ -43,15 +43,15 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     data = data[(:obs_data,:ERA5_data)]
 
 
-    if ~isnothing(surface)
+    if ~isnothing(surface) #(is always ERA5)
         if surface ∈ ["reference_state", "reference","ref"]  # we just want the surface reference state and we'll just return that
-            Tg = data[forcing]["Tg"][:][1] # might have to drop lon,lat dims or sum
-            pg = data[forcing]["Ps"][:][1]
+            Tg = data[:ERA5_data]["Tg"][:][1] # might have to drop lon,lat dims or sum
+            pg = data[:ERA5_data]["Ps"][:][1]
             qg = calc_qg(Tg, pg)
             return TD.PhaseEquil_pTq(thermo_params, pg , Tg , qg )
         elseif surface ∈ ["surface_conditions", "conditions","cond"] 
-            Tg = vec(data[forcing]["Tg"])[:] # might have to drop lon,lat dims or sum
-            pg = vec(data[forcing]["Ps"])[:]
+            Tg = vec(data[:ERA5_data]["Tg"])[:] # might have to drop lon,lat dims or sum
+            pg = vec(data[:ERA5_data]["Ps"])[:]
             qg = calc_qg(Tg, pg)
             return (;pg=t->pyinterp([t], data[forcing]["tsec"][:], pg)[1], Tg=t->pyinterp([t], data[forcing]["tsec"][:], Tg)[1], qg=t->pyinterp([t], data[forcing]["tsec"][:], qg)[1] ) # would use ref and broadcast but doesnt convert back to array
                    
@@ -79,7 +79,9 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     ts_full = map((ts,tsg)->combine_air_and_ground_data(ts, tsg, z_dim_num), ts,tsg)
 
     # old_z  => Precompute old z coordinate (precompute to save us some trouble later (get_data_new_z_t func can self-calculate it but it's redundant to keep calculating z)
-    z_old = map((ts,tsg,data)->lev_to_z( ts,tsg; param_set=param_set, data=data) , ts,tsg, data)
+    # z_old = map((ts,tsg,data)->lev_to_z( ts,tsg; param_set=param_set, data=data) , ts,tsg, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
+    z_old = map((ts,data)->lev_to_z( ts,tsg; param_set=param_set, data=data) , ts,tsg[:ERA5_data], data) # should this be tsg[:ERA5_data] cause surface is always ERA5
+    @show(z_old)
 
     # ω (subsidence) # always forced by era5
     ρ  = TD.air_density.(thermo_params, ts[:ERA5_data])
