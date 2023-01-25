@@ -4,10 +4,11 @@ module SOCRATES_Single_Column_Forcings
 # THIS_DIR="/home/jbenjami/Research_Schneider/CliMa/SOCRATES_Single_Column_Forcings.jl";
 # empty!(DEPOT_PATH); push!(DEPOT_PATH,THIS_DIR*"/.julia_depot"); 
 using Pkg
-Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/jbphyswx/MyRegistry")) # see https://discourse.julialang.org/t/more-informative-project-toml-or-partial-manifest-toml/92804/5
+Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/jbphyswx/MyRegistry")) # see https://discourse.julialang.org/t/more-informative-project-toml-or-partial-manifest-toml/92804/5 
 
 # Pkg.develop(path="/home/jbenjami/Research_Schneider/CliMa/Thermodynamics.jl") # do i still need this?
-Pkg.add(url="https://github.com/CliMA/Thermodynamics.jl#jb/non_eq_moisture")
+# Pkg.add(url="https://github.com/CliMA/Thermodynamics.jl#jb/non_eq_moisture") # this still worked to compile this packge, but somethign goes wrong when using it in TC.jl
+# Pkg.add(name="Thermodynamics",rev="jb/non_eq_moisture") # doesn't seem your localregistry specifies branch so i guess you'd have to do this... (i think having this uncommented makes an infinite recursion when adding from the environment  )
 import Thermodynamics as TD
 import NCDatasets as NC
 using DelimitedFiles

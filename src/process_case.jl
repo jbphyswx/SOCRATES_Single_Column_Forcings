@@ -150,6 +150,11 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
 end
 
 
+function get_default_new_z(flight_number::Int;)
+    data  = SOCRATES_Single_Column_Forcings.open_atlas_les_profile(flight_number);
+    new_z = data[:grid_data]
+    return new_z
+end
 
 function surface_ref_state(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symbol}, param_set=param_set)
     """
