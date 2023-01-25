@@ -53,7 +53,7 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
             Tg = vec(data[forcing]["Tg"])[:] # might have to drop lon,lat dims or sum
             pg = vec(data[forcing]["Ps"])[:]
             qg = calc_qg(Tg, pg)
-            return (;pg=t->pyinterp(t, data[forcing]["tsec"][:], pg), Tg=t->pyinterp(t, data[forcing]["tsec"][:], Tg), qg=t->pyinterp(t, data[forcing]["tsec"][:], qg) )
+            return (;pg=t->pyinterp([t], data[forcing]["tsec"][:], pg)[1], Tg=t->pyinterp([t], data[forcing]["tsec"][:], Tg)[1], qg=t->pyinterp([t], data[forcing]["tsec"][:], qg)[1] ) # would use ref and broadcast but doesnt convert back to array
                    
         else
             error("if surface is not set to nothing (i.e you want a surface value, it must be either \"reference_state\" or \"surface_conditions\"")
