@@ -80,9 +80,10 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
 
     # old_z  => Precompute old z coordinate (precompute to save us some trouble later (get_data_new_z_t func can self-calculate it but it's redundant to keep calculating z)
     # z_old = map((ts,tsg,data)->lev_to_z( ts,tsg; param_set=param_set, data=data) , ts,tsg, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
-    z_old = map((ts,data)->lev_to_z( ts,tsg; param_set=param_set, data=data) , ts,tsg[:ERA5_data], data) # should this be tsg[:ERA5_data] cause surface is always ERA5
+    z_old = map((ts,data)->lev_to_z( ts,tsg[:ERA5_data]; param_set=param_set, data=data) , ts, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
     @show(z_old)
 
+    
     # ω (subsidence) # always forced by era5
     ρ  = TD.air_density.(thermo_params, ts[:ERA5_data])
     ρg = TD.air_density.(thermo_params,tsg[:ERA5_data])
