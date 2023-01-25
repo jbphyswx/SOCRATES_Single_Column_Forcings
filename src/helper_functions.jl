@@ -359,7 +359,7 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim; varg=nothing, z_old=nothi
         z_old = z_from_data(data; param_set=param_set); # uses ground value to create the old z, pads bottom w/ 0
     end
     if isnothing(t_old)
-        t_old = data["tsec"][:] # check this unit was right in the files
+        t_old = data["tsec"][:] # check this unit was right in the files (may need to make sure it's subtracting out the first timestep so starts at 0) -- do we need to align this on a dimension?
     end
 
     if ~isnothing(varg)
@@ -412,6 +412,12 @@ function insert_dims(data, ind; new_dim_sizes=[-1])
     data =  reshape(data, sz_data...) # reshape
 end
 
+function calc_qg(Tg,pg)
+    pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid()) 
+    molmass_ratio = TCP.molmass_ratio(param_set)
+    qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
+    return qg
+end
 
 
 
