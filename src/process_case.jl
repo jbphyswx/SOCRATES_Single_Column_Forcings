@@ -1,6 +1,6 @@
 param_set = SOCRATES_Single_Column_Forcings.Parameters.param_set
 
-function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symbol}, new_z::Union{Nothing,AbstractArray}=nothing, initial_condition::Bool=false, param_set=param_set)
+function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symbol}, new_z::Union{Nothing,AbstractArray}=nothing, initial_condition::Bool=false, param_set=param_set, surface=nothing)
     """
     Processes the flight data for that case
     If new_z is not specified, will use Rachel Atlas default grid
@@ -23,10 +23,14 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     elseif obs_or_ERA5 == "ERA5"
         forcing = :ERA5_data
     else
-        if obs_or_ERA5 ∉ [:obs_data, :ERA5_data]
+        if obs_or_ERA5 ∉ [:obs_data, :ERA5_data, "Obs","ERA5"]
             error("obs_or_ERA5 must be either \"Obs\"/[:obs_data] or \"ERA5\"/[:ERA5_data]")
+        else
+            forcing = obs_or_ERA5
         end
     end
+
+    # @show(obs_or_ERA5)
 
     # specify our action dimensions
     z_dim_num    = get_dim_num( "lev", data[forcing]["T"])
@@ -37,6 +41,24 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     # We use map here on individual variables mostly as many of them are no longer constituent variables of data so we must construct fcns with them separately
 
     data = data[(:obs_data,:ERA5_data)]
+
+
+    if ~isnothing(surface)
+        if surface ∈ ["reference_state", "reference","ref"]  # we just want the surface reference state and we'll just return that
+            Tg = data[forcing]["Tg"][:][1] # might have to drop lon,lat dims or sum
+            pg = data[forcing]["Ps"][:][1]
+            qg = calc_qg(Tg, pg)
+            return TD.PhaseEquil_pTq(thermo_params, pg , Tg , qg )
+        elseif surface ∈ ["surface_conditions", "conditions","cond"] 
+            Tg = vec(data[forcing]["Tg"])[:] # might have to drop lon,lat dims or sum
+            pg = vec(data[forcing]["Ps"])[:]
+            qg = calc_qg(Tg, pg)
+            return (;pg=t->pyinterp(t, data[forcing]["tsec"][:], pg), Tg=t->pyinterp(t, data[forcing]["tsec"][:], Tg), qg=t->pyinterp(t, data[forcing]["tsec"][:], qg) )
+                   
+        else
+            error("if surface is not set to nothing (i.e you want a surface value, it must be either \"reference_state\" or \"surface_conditions\"")
+        end
+    end
     
     # p,T,q | need these from both ERA and obs to construct ts, tsg
     p  = map(x->x["lev"], data)
@@ -46,12 +68,7 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     Tg = map(x->x["Tg"], data)
     q  = map(x->x["q"], data)
 
-    function calc_qg(Tg,pg)
-        pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid()) 
-        molmass_ratio = TCP.molmass_ratio(param_set)
-        qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
-        return qg
-    end
+
     qg       = map(calc_qg, Tg, pg)
     q_full   = combine_air_and_ground_data(q[forcing], qg[forcing], z_dim_num) # full q_array/qt_nudge -- is used from the chosen forcing dataset
     qt_nudge = q_full 
@@ -133,6 +150,14 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
 end
 
 
+
+function surface_ref_state(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symbol}, param_set=param_set)
+    """
+    In Cases.jl from TurbulenceConvection.jl you're asked to provide a surface reference state so I'm gonna provide one based off just whatever our base profile is
+    """
+
+
+end
 
 
 
