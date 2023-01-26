@@ -76,12 +76,12 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     # Set up thermodynamic states for easier use (for both forcing and ERA -- note ERA subsidence for example depends on density which relies on T,p,q so need both even if forcing is :obs_data)
     ts      = map((p,T,q)->TD.PhaseEquil_pTq.(thermo_params, p , T , q ), p,T,q)
     tsg     = map((pg,Tg,qg)->TD.PhaseEquil_pTq.(thermo_params, pg , Tg , qg ), pg,Tg,qg)
-    ts_full = map((ts,tsg)->combine_air_and_ground_data(ts, tsg, z_dim_num), ts,tsg)
+    ts_full = map((ts)->combine_air_and_ground_data(ts, tsg[:ERA5_data], z_dim_num), ts)
 
     # old_z  => Precompute old z coordinate (precompute to save us some trouble later (get_data_new_z_t func can self-calculate it but it's redundant to keep calculating z)
     # z_old = map((ts,tsg,data)->lev_to_z( ts,tsg; param_set=param_set, data=data) , ts,tsg, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
     z_old = map((ts,data)->lev_to_z( ts,tsg[:ERA5_data]; param_set=param_set, data=data) , ts, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
-    @show(z_old)
+    # @show(z_old)
 
     
     # ω (subsidence) # always forced by era5
