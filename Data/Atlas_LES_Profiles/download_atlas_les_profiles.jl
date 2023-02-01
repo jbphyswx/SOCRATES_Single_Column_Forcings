@@ -6,7 +6,7 @@ export grid_heights
 export cases
 
 PKGDIR="/home/jbenjami/Research_Schneider/CliMa/SOCRATES_Single_Column_Forcings.jl";
-empty!(DEPOT_PATH); push!(DEPOT_PATH,PKGDIR*"/.julia_depot"); 
+# empty!(DEPOT_PATH); push!(DEPOT_PATH,PKGDIR*"/.julia_depot"); 
 import NCDatasets as NC
 
 # Two cases with shallow cloud-topped boundary layers, RF12 and RF13, are run on a 192-level vertical grid. 
