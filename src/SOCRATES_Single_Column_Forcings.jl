@@ -9,8 +9,10 @@ Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/jbphyswx/MyRegistry"))
 # Pkg.develop(path="/home/jbenjami/Research_Schneider/CliMa/Thermodynamics.jl") # do i still need this?
 # Pkg.add(url="https://github.com/CliMA/Thermodynamics.jl#jb/non_eq_moisture") # this still worked to compile this packge, but somethign goes wrong when using it in TC.jl
 # Pkg.add(name="Thermodynamics",rev="jb/non_eq_moisture") # doesn't seem your localregistry specifies branch so i guess you'd have to do this... (i think having this uncommented makes an infinite recursion when adding from the environment  )
+# Pkg.add(url="https://github.com/CliMA/Thermodynamics.jl.git",rev="jb/non_eq_moisture") # force track git branch , no registry name clash i hope, see https://github.com/JuliaLang/Pkg.jl/issues/681#issuecomment-415190878 (seems to make precompilation hang and stall..... idk why -- maybe cause i removed from localregistry?)
+Pkg.develop(url="https://github.com/CliMA/Thermodynamics.jl.git#jb/non_eq_moisture")  # this does work but adds another folder...
+# i think you just need to make sure the manifest has the tracked branch and just don't do all that here...
 
-Pkg.add(url="https://github.com/CliMA/Thermodynamics.jl.git",rev="jb/non_eq_moisture") # force track git branch , no registry name clash i hope, see https://github.com/JuliaLang/Pkg.jl/issues/681#issuecomment-415190878
 import Thermodynamics as TD
 import NCDatasets as NC
 using DelimitedFiles
