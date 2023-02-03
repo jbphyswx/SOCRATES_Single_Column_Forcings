@@ -119,11 +119,11 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     What does it mean to have both the forcing and the nudging? are they not overlapping/competing?
     =#
 
-    # # u_g, v_g # always forced by ERA5 
-    # ug = data[:ERA5_data]["ug"] 
-    # vg = data[:ERA5_data]["vg"]
-    # ug = combine_air_and_ground_data(ug,FT(0),z_dim_num)
-    # vg = combine_air_and_ground_data(vg,FT(0),z_dim_num)
+    # u_g, v_g # always forced by ERA5 
+    ug = data[:ERA5_data]["ug"] 
+    vg = data[:ERA5_data]["vg"]
+    ug = combine_air_and_ground_data(ug,FT(0),z_dim_num)
+    vg = combine_air_and_ground_data(vg,FT(0),z_dim_num)
 
     # H (nudge)
     θ_liq_ice  = TD.liquid_ice_pottemp.(thermo_params, ts_full[forcing])
@@ -148,7 +148,7 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     v_nudge    = get_data_new_z_t(v_nudge   , new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], param_set=param_set,  initial_condition=initial_condition)
 
 
-    return  (; dTdt_hadv, H_nudge, dqtdt_hadv, qt_nudge, subsidence, u_nudge, v_nudge)
+    return  (; dTdt_hadv, H_nudge, dqtdt_hadv, qt_nudge, subsidence, u_nudge, v_nudge, ug_nudge, vg_nudge)
 
 end
 
