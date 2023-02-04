@@ -298,6 +298,12 @@ function interp_along_dim(var, interp_dim, interp_dim_in; interp_dim_out=nothing
 end
 
 
+##########################
+#### -- note is this redundant? i think techincally we're create and instantateously evaluate the spline over and over -- maybe we want to just store the spline and then evaluate it at different points?
+##########################
+
+
+
 # function var_to_new_z(;var=var, varg=nothing, old_z=z, new_z=default_new_z, interp_dim=ldn, data_func=x->reverse(x;dims=ldn), kwargs...)
 #     """
 #     data interpolation to new z coordinate
