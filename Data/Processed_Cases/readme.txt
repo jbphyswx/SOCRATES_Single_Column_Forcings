@@ -1,0 +1,1 @@
+You could store here the processed data on the grid the test is supposed to be run on or maybe like a base grid ... idk..
