@@ -1,7 +1,7 @@
 name = "SOCRATES_Single_Column_Forcings"
 uuid = "efca6b66-9b98-11ed-1a32-7b7cdccd517a"
 authors = ["Jordan Benjamin"]
-version = "0.0.1"
+version = "0.0.2"
 
 [deps]
 CLIMAParameters = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
