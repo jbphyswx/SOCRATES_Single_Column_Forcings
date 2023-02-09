@@ -9,6 +9,11 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     Some things are always forced by ERA5, otherwise we pull from whatever obs_or_ERA5 specifies... (list which is which?)
     """
 
+
+    ##### ALL OUR combine_air_and_ground_data calls need to be retrofitted to actually account for where the ground is! ######
+
+    ## Plan -- create a stored variable "combine_z_dim" or something like that that you can pass around that tells you where to insert the values from ground into the full array in combine_air_and_ground data -- and some argument that uses that variable to supplant other options (or make another func?)
+
     # initial conditions
     data  = SOCRATES_Single_Column_Forcings.open_atlas_les_profile(flight_number);
 
@@ -69,14 +74,22 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     q  = map(x->x["q"], data)
 
 
-    qg       = map(calc_qg, Tg, pg)
-    q_full   = combine_air_and_ground_data(q[forcing], qg[forcing], z_dim_num) # full q_array/qt_nudge -- is used from the chosen forcing dataset
-    qt_nudge = q_full 
+    qg      = map(calc_qg, Tg, pg)
+
 
     # Set up thermodynamic states for easier use (for both forcing and ERA -- note ERA subsidence for example depends on density which relies on T,p,q so need both even if forcing is :obs_data)
     ts      = map((p,T,q)->TD.PhaseEquil_pTq.(thermo_params, p , T , q ), p,T,q)
     tsg     = map((pg,Tg,qg)->TD.PhaseEquil_pTq.(thermo_params, pg , Tg , qg ), pg,Tg,qg)
-    ts_full = map((ts)->combine_air_and_ground_data(ts, tsg[:ERA5_data], z_dim_num), ts)
+
+    # get indices where the ground would get inserted in... (and convert to same shape/dims.)
+    ground_indices = map( (ts) -> get_ground_insertion_indices(ts, tsg[:ERA5_data], z_dim_num; param_set=param_set, data=data), ts) # always use ERA5 surface...
+    # @show(ground_indices, map(size,ground_indices))
+
+    q_full   = combine_air_and_ground_data(q[forcing], qg[forcing], z_dim_num; insert_location=ground_indices[forcing]) # full q_array/qt_nudge -- is used from the chosen forcing dataset
+    qt_nudge = q_full 
+
+
+    ts_full = map((ts,ground_indices)->combine_air_and_ground_data(ts, tsg[:ERA5_data], z_dim_num; insert_location=ground_indices), ts, ground_indices)
 
     # old_z  => Precompute old z coordinate (precompute to save us some trouble later (get_data_new_z_t func can self-calculate it but it's redundant to keep calculating z)
     # z_old = map((ts,tsg,data)->lev_to_z( ts,tsg; param_set=param_set, data=data) , ts,tsg, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
@@ -87,28 +100,57 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     # ω (subsidence) # always forced by era5
     ρ  = TD.air_density.(thermo_params, ts[:ERA5_data])
     ρg = TD.air_density.(thermo_params,tsg[:ERA5_data])
-    ρ  = combine_air_and_ground_data(ρ, ρg, z_dim_num)
+    ρ  = combine_air_and_ground_data(ρ, ρg, z_dim_num; insert_location=ground_indices[:ERA5_data])
     ω  = data[:ERA5_data]["omega"] 
     dpdt_g = data[:ERA5_data]["Ptend"]
     dpdt_g = add_dim(dpdt_g, z_dim_num) # should be lon lat lev time (hopefully order was already correct)
-    ω  = combine_air_and_ground_data(ω, dpdt_g, z_dim_num)
+    ω  = combine_air_and_ground_data(ω, dpdt_g, z_dim_num; insert_location=ground_indices[:ERA5_data])
 
     p_grid = add_dim(align_along_dimension(p[:ERA5_data], z_dim_num),time_dim_num) # align on dimension 3 lev, add time dimensino 4
     # p_full = combine_air_and_ground_data(p_grid, add_dim(pg[:ERA5_data],z_dim_num) ,z_dim_num) # align p along lev, add lev_dim to pg, stack (hope braodcasting works to fill it out...)
 
-    p_full = combine_air_and_ground_data(p_grid, pg[:ERA5_data][:] ,z_dim_num) # align p along lev, add lev_dim to pg, stack (hope braodcasting works to fill it out...)
+    p_full = combine_air_and_ground_data(p_grid, pg[:ERA5_data][:] ,z_dim_num; insert_location=ground_indices[:ERA5_data]) # align p along lev, add lev_dim to pg, stack (hope braodcasting works to fill it out...)
 
-    c    = 100
-    a    = -2 + exp(250/c)
-    f_p  = @. 2(a+1) / (a+exp(p_full/c)) - 1
+    # this i think was wrong -- maybe get atlas to confirm what version of the sigmoid she used.
+    # c    = 100
+    # a    = -2 + exp(250/c)
+    # f_p  = @. 2(a+1) / (a+exp(p_full/c)) - 1
+
+    squeeze = (x) -> dropdims(x, dims = (findall(size(x) .== 1)...,))
+
+    # this was derived for a scaled sigmoid passing through (ps,1), (25000 Pa, 0)
+    L = 2.2 # maximum value (shape parameter)
+    a = -L/2
+    p0 = 250. * 100
+    # @show( pg[:ERA5_data][:], size( pg[:ERA5_data][:]) )
+    p1 = add_dim(  pg[:ERA5_data][:], z_dim_num)
+    # @show(p1, size(p1))
+    (p1,y1) = (p1 , 1) # use our ground pressure (can't use pfull cause would need to pull)
+    (p2,y2) = (p0                , 0) 
+    k = @. log((L/2 + 1)/(L/2 - 1)) / (p1-p0) # ps is an array so we have an array of ks
+    # @show(squeeze(k),size(k))
+    # @show(size(p_full))
+    f_p = @. a + L  / (1 + exp(-k*(p_full-p0)))
+
+
     grav = TCP.grav(param_set)  # TD.Parameters.grav(thermo_params)
+    # @show(size(f_p), size(ω), size(ρ))
     subsidence =  -(ω .- dpdt_g.*f_p)  ./ (ρ .* grav) 
-    
+
+    # @show(minimum(subsidence), maximum(subsidence))
+    # subsidence = max.(subsidence,0)  # stability test (unstable) (all ascent)
+    subsidence = min.(subsidence,0)  # stability test (stable!) ( all subsidence )
+    # m = .007 # almost stable .005 | unstable .007
+    # subsidence[subsidence .> m] .= m # stability test -- can we tolerate any ascent?
+
+    # @show(squeeze(ω)', squeeze(f_p)' )
+    # @show(squeeze(subsidence)',squeeze(p_full)')
+
     # u, v # always forced by ERA5
     u = data[:ERA5_data]["u"] 
     v = data[:ERA5_data]["v"]
-    u = combine_air_and_ground_data(u,FT(0),z_dim_num)
-    v = combine_air_and_ground_data(v,FT(0),z_dim_num)
+    u = combine_air_and_ground_data(u,FT(0),z_dim_num; insert_location=ground_indices[:ERA5_data])
+    v = combine_air_and_ground_data(v,FT(0),z_dim_num; insert_location=ground_indices[:ERA5_data])
     u_nudge,v_nudge = u,v
 
     #=
@@ -122,8 +164,8 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
     # u_g, v_g # always forced by ERA5 
     ug = data[:ERA5_data]["ug"] 
     vg = data[:ERA5_data]["vg"]
-    ug = combine_air_and_ground_data(ug,FT(0),z_dim_num)
-    vg = combine_air_and_ground_data(vg,FT(0),z_dim_num)
+    ug = combine_air_and_ground_data(ug,FT(0),z_dim_num; insert_location=ground_indices[:ERA5_data])
+    vg = combine_air_and_ground_data(vg,FT(0),z_dim_num; insert_location=ground_indices[:ERA5_data])
     ug_nudge,vg_nudge = ug,vg
 
     # H (nudge)
@@ -133,12 +175,11 @@ function process_case(flight_number::Int; obs_or_ERA5 = "Obs"::Union{String,Symb
 
     # dTdt_hadv (i think these are supposed to be always ERA5)
     dTdt_hadv = data[:ERA5_data]["divT"] 
-    dTdt_hadv = combine_air_and_ground_data(dTdt_hadv,FT(0),z_dim_num)
+    dTdt_hadv = combine_air_and_ground_data(dTdt_hadv,FT(0),z_dim_num; insert_location=ground_indices[:ERA5_data])
 
     # dqdt_hadv (i think these are supposed to be always ERA5)
     dqtdt_hadv = data[:ERA5_data]["divq"] 
-    dqtdt_hadv = combine_air_and_ground_data(dqtdt_hadv,FT(0),z_dim_num)
-
+    dqtdt_hadv = combine_air_and_ground_data(dqtdt_hadv,FT(0),z_dim_num; insert_location=ground_indices[:ERA5_data])
     # expand everything to new z grid and make t operation (initial condition or time splines)
     dTdt_hadv  = get_data_new_z_t(dTdt_hadv , new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], param_set=param_set,  initial_condition=initial_condition)
     H_nudge    = get_data_new_z_t(H_nudge   , new_z, z_dim_num,time_dim_num; z_old = z_old[forcing]   , data=data[forcing]   , param_set=param_set,  initial_condition=initial_condition)

@@ -28,6 +28,7 @@ default_new_z = collect(0:100:0000) # for testing case
 
 #= Simple linear interpolation function, wrapping Dierckx (copied from TC.jl)  =#
 function pyinterp(x, xp, fp)
+    # @show(x, xp, fp)
     spl = Dierckx.Spline1D(xp, fp; k = 1)
     return spl(vec(x))
 end
@@ -119,6 +120,63 @@ function data_to_ts(data; do_combine_air_and_ground_data=false, param_set=param_
     return ts
 end
 
+
+function insert_sorted(vect, val; by=monotonic_checker, monotonic_rev=monotonic_rev)
+    # @show(vect,val)
+    index = searchsortedfirst(vect, val; by=monotonic_checker, rev=monotonic_rev) #find index at which to insert x
+    return insert!(vect, index, val) #insert x at index
+end
+
+# function insert_sorted(vect, val;by=monotonic_checker,monotonic_rev=monotonic_rev)
+#     index = searchsortedfirst(vect, val;  by=monotonic_checker, rev=monotonic_rev) #find index at which to insert x
+#     return insert!(vect, index, val) #insert x at index
+# end
+
+
+
+
+function lev_to_z_column(tsz; param_set=param_set, data=data)
+"""
+Because we might not have monotonic data, we need to be able to both insert the ground data into our lev array where applicable and calculate our dz accordingly...
+I guess in principle you could throw out p < ps but then you wouldn't be able to return an even array out so either way this function would need to exist for padding and such...
+
+tsz should be a one dimensional array consising of [ts..., tg]
+
+# to do -- add capability to use precomputed indices (insert_location)
+"""
+
+    ts  = tsz[1:end-1] # need to make it a vector I guess... (not sure if this screws wit output shape)
+    tsg = tsz[end]
+    thermo_params = TCP.thermodynamics_params(param_set) # can we replace this and only rely on Thermodynamics?
+    R_d           = TCP.R_d(param_set) # TD.Parameters.R_d(thermo_params)
+    grav          = TCP.grav(param_set)  # TD.Parameters.grav(thermo_params)
+    
+    # dimnames    = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
+    # lev_dim_num = findfirst(x->x=="lev",dimnames)
+    L           = length(ts)
+
+    # @show(size(ts),size(tsg))
+    index = searchsortedfirst(ts, tsg;  by=x->TD.air_pressure(thermo_params,x), rev=false) # find where the ground value would be inserted...
+    insert!(ts,index,tsg) # only seems to be an in place option...
+    tsz       = ts # replace with the reordered version
+
+    Tvz       = TD.virtual_temperature.(thermo_params, tsz) # virtual temp, we havent returned these for now...
+    pz        = TD.air_pressure.(thermo_params, tsz)
+    Lz        = L+1 # cause we extended it using the ground...
+    Tv_bar    = Statistics.mean((Tvz[1:Lz-1], Tvz[2:Lz]))
+    p_frac    = pz[2:Lz] ./ pz[1:Lz-1]
+    dz        = @. (R_d * Tv_bar / grav) * log(p_frac)
+
+    # sum up from the bottom then subtract the height of the ground
+    z         = reverse(cumsum(reverse(dz))) #cumsum(dz) # grid is already defined from  (from Grid.jl)
+    # s_sz      = collect(size(z)) # should now be same dims as T
+    # s_sz[ldn] = 1 # we just want to add a single slice of zeros for the ground -- these are all ocean cases so this should be fine for now...
+    z         = [z...,0] # is this the right order? seems so based on the cat below but idk... if so might have to flip index to be L - index or something like that? (seems to be so...)
+    # after the padding, z for the ground should be at the right index, and we can just subtract it out from the array...
+    z         = z .- z[index]
+    return z
+end
+
 # convert pressure to altitude...
 function lev_to_z( p::FT, T::FT, q::FT, pg::FT, Tg::FT, qg::FT; param_set=param_set, data=data) where {FT <: Real}
     """
@@ -130,35 +188,49 @@ function lev_to_z( p::FT, T::FT, q::FT, pg::FT, Tg::FT, qg::FT; param_set=param_
 end
 
 
-function lev_to_z(ts, tsg; param_set=param_set, data=data )
+function lev_to_z(ts, tsg; param_set=param_set, data=data, assume_monotonic = false )
     """
     ts is thermodynamic state
     tsg is thermodynamic state for ground
+
+    if assume monotonic, everything should already be in the right order and we can use the vectorized version, otherwise we will use lev_to_z column applied column by column w/ mapslices
     """
-    thermo_params = TCP.thermodynamics_params(param_set) # can we replace this and only rely on Thermodynamics?
-    R_d       = TCP.R_d(param_set) # TD.Parameters.R_d(thermo_params)
-    grav      = TCP.grav(param_set)  # TD.Parameters.grav(thermo_params)
-    
+
     dimnames    = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
     lev_dim_num = findfirst(x->x=="lev",dimnames)
     ldn         = lev_dim_num
     L           = size(ts,lev_dim_num)
 
-    # tsz       = cat(ts,tsg;dims=ldn)
-    tsz       = combine_air_and_ground_data(ts,tsg,ldn;data=data,reshape_ground=true)
+    if !assume_monotonic
+        tsz = combine_air_and_ground_data(ts,tsg,ldn;data=data,reshape_ground=true, insert_location=:end) # here we just want to assume monotonic so we can pass those to this fcn
+        z   = mapslices(x->lev_to_z_column(x;param_set=param_set,data=data), tsz; dims=ldn) # need to make a stack cause that's all mapslices can take...
+    else
 
-    Tvz       = TD.virtual_temperature.(thermo_params, tsz) # virtual temp, we havent returned these for now...
-    pz        = TD.air_pressure.(thermo_params, tsz)
-    Lz        = L+1 # cause we extended it using the ground...
-    Tv_bar    = Statistics.mean((selectdim(Tvz, ldn, 1:Lz-1), selectdim(Tvz, lev_dim_num, 2:Lz)))
-    p_frac    = selectdim( pz, lev_dim_num, 2:Lz) ./ selectdim( pz, ldn, 1:Lz-1)
-    dz        = @. (R_d * Tv_bar / grav) * log(p_frac)
-    #
-    z         = reverse(cumsum(reverse(dz;dims=ldn);dims=ldn);dims=ldn) #cumsum(dz) # grid is already defined from  (from Grid.jl)
-    s_sz      = collect(size(z)) # should now be same dims as T
-    s_sz[ldn] = 1 # we just want to add a single slice of zeros for the ground -- these are all ocean cases so this should be fine for now...
-    _z0       = zeros(Float64,s_sz...)
-    z         = cat(z, _z0; dims=ldn)
+        thermo_params = TCP.thermodynamics_params(param_set) # can we replace this and only rely on Thermodynamics?
+        R_d           = TCP.R_d(param_set) # TD.Parameters.R_d(thermo_params)
+        grav          = TCP.grav(param_set)  # TD.Parameters.grav(thermo_params)
+        
+
+        # tsz       = cat(ts,tsg;dims=ldn)
+        tsz       = combine_air_and_ground_data(ts,tsg,ldn;data=data,reshape_ground=true, insert_location=x->TD.air_pressure(thermo_params,x)) # this doesnt work cause sometimes ps is more than the lowest value in lev...
+
+        #actually we need to split dz into pos or neg depending on whether or not it's above ground... maybe best just to have fcn that goes along each column...
+
+        Tvz       = TD.virtual_temperature.(thermo_params, tsz) # virtual temp, we havent returned these for now...
+        pz        = TD.air_pressure.(thermo_params, tsz)
+        Lz        = L+1 # cause we extended it using the ground...
+        Tv_bar    = Statistics.mean((selectdim(Tvz, ldn, 1:Lz-1), selectdim(Tvz, lev_dim_num, 2:Lz)))
+        p_frac    = selectdim( pz, lev_dim_num, 2:Lz) ./ selectdim( pz, ldn, 1:Lz-1)
+        dz        = @. (R_d * Tv_bar / grav) * log(p_frac)
+        # @show(dz)
+
+        z         = reverse(cumsum(reverse(dz;dims=ldn);dims=ldn);dims=ldn) #cumsum(dz) # grid is already defined from  (from Grid.jl)
+        # @show(z)
+        s_sz      = collect(size(z)) # should now be same dims as T
+        s_sz[ldn] = 1 # we just want to add a single slice of zeros for the ground -- these are all ocean cases so this should be fine for now...
+        _z0       = zeros(Float64,s_sz...)
+        z         = cat(z, _z0; dims=ldn)
+    end
     return z
 end
 
@@ -169,15 +241,41 @@ function z_from_data(data; param_set=param_set)
 end
 
 
-function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape_ground=true)
+function get_ground_insertion_indices(ts,tsg, concat_dim; param_set=param_set, data=data)
+    """
+    Get the indices where the ground tsg would fit into the array ts...
+    """
+    function mapslice_func(vect; by=x->TD.air_pressure(thermo_params,x))
+        # @show(vect)
+        vardata  = vect[1:end-1]
+        vardatag = vect[end]
+        index = searchsortedfirst(vardata, vardatag; by=by, rev=false)
+        return index
+    end
+    # reshape ( TODO!! # use add_dim )
+    sz_tsg = collect(size(tsg)) # array
+    insert!(sz_tsg,concat_dim,1) # insert sz 1 at this location 
+    tsg =  reshape(tsg, sz_tsg...) # reshape (just adds the singleton dimension in)
+    # concat and calculate
+    ts = cat(ts,tsg; dims=concat_dim)
+    return mapslices(mapslice_func, ts; dims=[concat_dim])
+end
+
+
+
+
+function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape_ground=true, insert_location=:end)
     """
     var  : the data variable or string variable name for data in the air
     varg : the data variable or string variable name for data on the ground
     data : is a container from which the data can be accessed as a string in data[var(g)] form
 
     reshape_ground : expand the ground data to the same size as bottom slice of the air data (so you can pass in for example a single scalar or similar reduced dimension varg)
-    """
+    assume_monotonic : assume that the ground value is actually below everything in the array... in reality sometimes we have for example a ground pressure above that of the minimum in this array... (should be faster than using insert_location )
+    # might not need this anymore cause if insert_location is integer that jut works
 
+    # atlas stated "We use hourly pressure level data interpolated onto a horizontal grid of 0.25° × 0.25° and 37 pressure levels from its native 137 hybrid sigma/pressure levels and 30 km horizontal grid." so i guess sometimes this causes slight problems
+    """
     # if data is a string, read the data out from data (creates data `vardata` from `var` whether var is string or already is data)
     vardata    = isa(var ,String) ? data[var ] : var
     vardatag   = isa(varg,String) ? data[varg] : varg
@@ -200,6 +298,7 @@ function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape
             # assume we need to add a new dimension at the same location as in the full array and order otherwise is preserved (quick check looks ok)
             sz_vardatag = collect(size(vardatag)) # array
             if ndims(vardatag) == (ndims(vardata)-1)
+                ## TODO USE add_dim
                 insert!(sz_vardatag,concat_dim,1) # insert sz 1 at this location 
                 vardatag =  reshape(vardatag, sz_vardatag...) # reshape (just adds the singleton dimension in)
             elseif ndims(vardatag) != ndims(vardata)
@@ -215,12 +314,47 @@ function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape
     num_repeatg = sz_vardata .÷ sz_vardata # integer division
     num_repeat[ concat_dim] = 1 # don't repeat along concat dim
     num_repeatg[concat_dim] = 1 # don't repeat along concat dim
-    vardatag = repeat(vardatag, num_repeatg...)
+    vardatag = repeat(vardatag, num_repeatg...) 
     vardata  = repeat(vardata , num_repeat...)
 
-    vardata = cat(vardata,vardatag;dims=concat_dim)
+    if insert_location == :end # here we assume the ground values are below the values we add automatically. (we used to use identity fcn but i think we don't need that)
+        vardata = cat(vardata,vardatag;dims=concat_dim) # we concatenate it at the end...
+    elseif isa(insert_location,Function) # use function to determine where to insert our ground values, uses search sorted assuming the original array is already sorted (speedup from binary search)
+        mapslice_func = function(vect; by=insert_location) # write this way cause can't define func inside conditional unless anonymous?, see https://github.com/JuliaLang/julia/issues/15602 , https://stackoverflow.com/a/65660721
+            # @show(vect)
+            vardata  = vect[1:end-1]
+            vardatag = vect[end]
+            # @show(vardata, vardatag)
+            return insert_sorted(vardata,vardatag; by=insert_location)
+        end
+        vardata = cat(vardata,vardatag;dims=concat_dim)
+        vardata = mapslices(mapslice_func, vardata; dims=[concat_dim])
+
+    elseif isa(insert_location, AbstractArray ) # use provided indices to determine where to input values...
+        if isa(vardatag, Number) # single value, just splice in our value
+            vardata = cat(selectdim(vardata, concat_dim, 1:insert_location-1),vardatag, selectdim(vardata, concat_dim, insert_location:size(vardata,concat_dim)); dims=concat_dim) # insert the slice there...
+        elseif isa(vardatag, AbstractArray) # an unlabeled array, i think we can't guarantee then that the lev axis exists at all or what existing dimensions are so this just assumes everything is correct except the lev dimension being there
+            # assume we need to add a new dimension at the same location as in the full array and order otherwise is preserved (quick check looks ok)
+            mapslice_func = function(vect) # write this way cause can't define func inside conditional unless anonymous?, see https://github.com/JuliaLang/julia/issues/15602 , https://stackoverflow.com/a/65660721
+                # @show(vect)
+                vardata  = vect[1:end-2]
+                vardatag = vect[end-1]
+                insert_location = Int(vect[end]) # undo if was coerced to FT
+                # insert (a little more complicated now cause we aren't exactly getting the same size output... dont think that actually matters for mapslices...)
+                # @show(vardata, vardatag, insert_location)
+                return insert!(vardata,insert_location, vardatag)
+            end
+            vardata = cat(vardata,vardatag,insert_location; dims=concat_dim)
+            vardata = mapslices(mapslice_func, vardata; dims=[concat_dim])
+        end
+    else
+        error("unsupported input type for variable insert_location") # catch what would otherwise silently fail and return vardata
+    end
+
     return vardata
 end
+
+
 
 
 function get_dim_num(dim,nc_data=nothing)
@@ -337,7 +471,7 @@ function var_to_new_coord(var,coord_in, interp_dim; coord_new=nothing, data=noth
 end
 
 
-function get_data_new_z_t(var, z_new, z_dim, time_dim; varg=nothing, z_old=nothing, t_old=nothing, data=nothing, param_set=param_set, initial_condition = false)
+function get_data_new_z_t(var, z_new, z_dim, time_dim; varg=nothing, z_old=nothing, t_old=nothing, data=nothing, param_set=param_set, initial_condition = false, assume_monotonic=false)
     """
     Take data from our base setup, interpolate it to new z, then create time splines based on the t we have....
     to vectorize properly over z_new, it should be the same shape as vardata+vardata_g
@@ -369,7 +503,13 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim; varg=nothing, z_old=nothi
     end
 
     if ~isnothing(varg)
-        vardata = combine_air_and_ground_data(vardata, vardatag, z_dim_num) # append ground data with 0 as z bottom, loses labeling now though  (this puts a lot of faith im these 2 vars being the same size of having labels which we can't guarantee, no?)
+        # here we also are gonna need to check where things get inserted in case they are not in order...
+
+        if !assume_monotonic # use data to figure out how and where to do insertions...
+            # we need some way to get the local dimension from just a variable
+        else
+            vardata = combine_air_and_ground_data(vardata, vardatag, z_dim_num; insert_location=ground_indices) # append ground data with 0 as z bottom, loses labeling now though  (this puts a lot of faith im these 2 vars being the same size of having labels which we can't guarantee, no?)
+        end
     end
 
     # select only the first timestep, but keep that dimension around w/ []

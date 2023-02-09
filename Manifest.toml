@@ -2,7 +2,7 @@
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "9518083dbda54c215563ade7a374b8df19fcb1a2"
+project_hash = "e77c8175da81e7f40ebc9b547f6d5f11a436795d"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra"]
@@ -39,9 +39,9 @@ version = "0.1.2"
 
 [[deps.CLIMAParameters]]
 deps = ["DocStringExtensions", "TOML", "Test"]
-git-tree-sha1 = "8cb1d69b6b5fc41be48bea969a68763a17843f1e"
+git-tree-sha1 = "a769996f7ed7a2f1fb070c4837370603387e5eb6"
 uuid = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
-version = "0.7.0"
+version = "0.7.1"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
@@ -171,9 +171,9 @@ version = "0.8.6"
 
 [[deps.LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "b8ae281340f0d3e973aae7b96fb7502b0119b376"
+git-tree-sha1 = "df115c31f5c163697eede495918d8e85045c8f04"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "4.15.0"
+version = "4.16.0"
 
 [[deps.LLVMExtra_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg", "TOML"]
@@ -219,9 +219,9 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [[deps.LogExpFunctions]]
 deps = ["ChainRulesCore", "ChangesOfVariables", "DocStringExtensions", "InverseFunctions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "45b288af6956e67e621c5cbb2d75a261ab58300b"
+git-tree-sha1 = "680e733c3a0a9cea9e935c8c2184aea6a63fa0b5"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "0.3.20"
+version = "0.3.21"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
