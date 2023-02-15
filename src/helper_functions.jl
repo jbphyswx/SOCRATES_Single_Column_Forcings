@@ -133,8 +133,8 @@ function lev_to_z_column(tsz; thermo_params, data=data)
 
     ts  = tsz[1:end-1] # need to make it a vector I guess... (not sure if this screws wit output shape)
     tsg = tsz[end]
-    R_d           = TD.R_d(thermo_params)
-    grav          = TD.grav(thermo_params)
+    R_d           = TDP.R_d(thermo_params)
+    grav          = TDP.grav(thermo_params)
 
     # dimnames    = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
     # lev_dim_num = findfirst(x->x=="lev",dimnames)
@@ -195,8 +195,8 @@ function lev_to_z(ts, tsg; thermo_params, data, assume_monotonic = false )
         z   = mapslices(x->lev_to_z_column(x;thermo_params,data), tsz; dims=ldn) # need to make a stack cause that's all mapslices can take...
     else
 
-        R_d           = TD.R_d(thermo_params) # TD.Parameters.R_d(thermo_params)
-        grav          = TD.grav(thermo_params)  # TD.Parameters.grav(thermo_params)
+        R_d           = TDP.R_d(thermo_params) # TD.Parameters.R_d(thermo_params)
+        grav          = TDP.grav(thermo_params)  # TD.Parameters.grav(thermo_params)
 
 
         # tsz       = cat(ts,tsg;dims=ldn)
@@ -235,8 +235,7 @@ end
 Get the indices where the ground tsg would fit into the array ts...
 """
 function get_ground_insertion_indices(ts,tsg, concat_dim; thermo_params, data=data)
-    function mapslice_func(vect; thermo_params, by=x->TD.air_pressure(thermo_params,x))
-        # @show(vect)
+    function mapslice_func(vect; thermo_params=thermo_params, by=x->TD.air_pressure(thermo_params,x))
         vardata  = vect[1:end-1]
         vardatag = vect[end]
         index = searchsortedfirst(vardata, vardatag; by=by, rev=false)
@@ -561,7 +560,7 @@ end
 
 function calc_qg(Tg,pg; thermo_params)
     pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
-    molmass_ratio = TD.molmass_ratio(thermo_params)
+    molmass_ratio = TDP.molmass_ratio(thermo_params)
     qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
     return qg
 end

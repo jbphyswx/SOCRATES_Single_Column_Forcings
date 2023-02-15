@@ -87,7 +87,7 @@ function process_case(
     q  = map(x->x["q"], data)
 
 
-    qg      = map(calc_qg, Tg, pg)
+    qg = map((Tg,pg)->calc_qg(Tg,pg;thermo_params), Tg, pg)
 
 
     # Set up thermodynamic states for easier use (for both forcing and ERA -- note ERA subsidence for example depends on density which relies on T,p,q so need both even if forcing is :obs_data)
@@ -146,7 +146,7 @@ function process_case(
     f_p = @. a + L  / (1 + exp(-k*(p_full-p0)))
 
 
-    grav = TD.grav(thermo_params)
+    grav = TDP.grav(thermo_params)
     # @show(size(f_p), size(ω), size(ρ))
     subsidence =  -(ω .- dpdt_g.*f_p)  ./ (ρ .* grav)
 

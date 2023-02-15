@@ -18,4 +18,8 @@ import Thermodynamics.Parameters as TDP
     # var, z_new, z_dim, time_dim
     # T_new_z_t     = SSCF.get_data_new_z_t("T", new_z,"lev","time"; data, thermo_params)
     # T_new_z_init  = SSCF.get_data_new_z_t("T", new_z,"lev","time"; data, thermo_params,  initial_condition=true)
+
+    data = SSCF.process_case(9;thermo_params = thermo_params)
+
+    @show(data)
 end

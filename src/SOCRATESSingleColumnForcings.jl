@@ -1,6 +1,7 @@
 module SOCRATESSingleColumnForcings
 
 import Thermodynamics as TD
+const TDP = TD.Parameters
 import NCDatasets as NC
 using DelimitedFiles
 using Statistics
