@@ -32,23 +32,28 @@ processed_Atlas_flight_data = Dict(
     15 => "https://caltech.box.com/shared/static/pfp8egkqcxhbyi1bxqfgk28g7neih7d8.nc",
     )
 
-# These don't 
+# These don't
 
+"""
+     open_processed_Atlas_flight_data(
+          flight_number::Int;
+          file_save_location=nothing,
+          cleanup_file::Bool=true
+     )
+"""
 function open_processed_Atlas_flight_data(flight_number::Int; file_save_location=nothing, cleanup_file::Bool=true)
-"""
-"""
 
-# file_save_location = isnothing(file_save_location) ? "/tmp/"*string(uuid1())*".nc"  : file_save_location
-file_save_location = isnothing(file_save_location) ? tempname()*".nc"  : file_save_location
+     # file_save_location = isnothing(file_save_location) ? "/tmp/"*string(uuid1())*".nc"  : file_save_location
+     file_save_location = isnothing(file_save_location) ? tempname()*".nc"  : file_save_location
 
-Downloads.download(processed_Atlas_flight_data[flight_number], file_save_location)
+     Downloads.download(processed_Atlas_flight_data[flight_number], file_save_location)
 
-data = NCDatasets.Dataset(file_save_location, "r")
+     data = NCDatasets.Dataset(file_save_location, "r")
 
-if cleanup_file # note /tmp would get cleaned anywaybut say you saved somewhere else, would need to load into memory though
-end
+     if cleanup_file # note /tmp would get cleaned anywaybut say you saved somewhere else, would need to load into memory though
+     end
 
-return data
+     return data
 
 end
 

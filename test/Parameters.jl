@@ -1,3 +1,6 @@
+"""
+# TODO: replace with TurbulenceConvectionParameters from TurbulenceConvection
+"""
 module Parameters
 
 # ADAPTED FROM  https://github.com/CliMA/TurbulenceConvection.jl/blob/99d35cafd158d8793fa744f773d5f942d6e74488/driver/parameter_set.jl
@@ -10,9 +13,8 @@ const ATCP = AbstractTurbulenceConvectionParameters
 
 
 import CLIMAParameters as CP
-import ..SOCRATES_Single_Column_Forcings.TD as TD
-import .TD.Parameters as TDP
-
+import Thermodynamics as TD
+import Thermodynamics.Parameters as TDP
 const TDPS = TD.Parameters.ThermodynamicsParameters
 
 pairs = NamedTuple()

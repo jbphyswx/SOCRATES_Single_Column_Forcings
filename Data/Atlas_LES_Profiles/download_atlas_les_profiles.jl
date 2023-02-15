@@ -1,31 +1,20 @@
-"""
+#=
 Download LES forcing data from https://atmos.uw.edu/~ratlas/SOCRATES-LES-cases.html
-"""
+=#
 
-export grid_heights
-export cases
-
-PKGDIR="/home/jbenjami/Research_Schneider/CliMa/SOCRATES_Single_Column_Forcings.jl";
-# empty!(DEPOT_PATH); push!(DEPOT_PATH,PKGDIR*"/.julia_depot"); 
 import NCDatasets as NC
+import SOCRATESSingleColumnForcings as SSCF
 
-# Two cases with shallow cloud-topped boundary layers, RF12 and RF13, are run on a 192-level vertical grid. 
-# The other four cases have clouds extending through deeper boundary layers; they are run on a 320-level vertical grid.
-grid_heights = Dict(
-     1 => 320,
-     9 => 320,
-    10 => 320,
-    11 => 320,
-    12 => 192, 
-    13 => 192,
-)
-
-cases = collect(keys(grid_heights))
+cases = collect(keys(SSCF.grid_heights))
 
 thisdir = @__DIR__ # doesn't seem to work to use @__DIR__ directly as a variable
 
 # download forcings for each flight
 
+"""
+    download_atlas_les_profiles(;cases=cases)
+
+"""
 function download_atlas_les_profiles(;cases=cases)
     for flight in cases # the socrates flight numbers
         RF_num = "RF" * string(flight,pad=2)
@@ -54,7 +43,7 @@ function download_atlas_les_profiles(;cases=cases)
         end
 
         #download grid file (is same for both era and obs forcings)
-        grid_height = grid_heights[flight]
+        grid_height = SSCF.grid_heights[flight]
         try
             download("https://atmos.uw.edu/~ratlas/"*string(grid_height)*"level-grd.txt",  thisdir*"/"*RF_num*"_grd.txt")
             @warn "Found https://atmos.uw.edu/~ratlas/"*string(grid_height)*"level-grd.txt"

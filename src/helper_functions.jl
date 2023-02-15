@@ -1,4 +1,4 @@
-#= ... 
+#= ...
 created jan 4 2023
 @jbphyswx
 ... =#
@@ -8,46 +8,31 @@ created jan 4 2023
 # -- seems to be a little cumbersome and no easy way to do netCDF reads and conversion to array/dataset like types
 ##
 
-using .SOCRATES_Single_Column_Forcings: grid_heights # is there a way to automatically link this to the other file? can't use w/o importing the entire module locally to link things
- 
-# this feels like a lot to import and have in the project file, should i copy over and write my own parameters?
-# can't even use the latest thermodynamics versino which i have local with that import...
-# Pkg.develop(path="/home/jbenjami/Research_Schneider/CliMa/TurbulenceConvection.jl")
-
-# const TCP = SOCRATES_Single_Column_Forcings.TCP
-param_set = SOCRATES_Single_Column_Forcings.Parameters.param_set
-thermo_params = SOCRATES_Single_Column_Forcings.TCP.thermodynamics_params(param_set)
-
-# thermo_params = param_set
-# thermo_params = SOCRATES_Single_Column_Forcings.Parameters.thermodynamics_params(param_set)
-
-# figure out these types... #
-
-# default_new_z = vec(grid.zc.z) 
-default_new_z = collect(0:100:0000) # for testing case 
-
 #= Simple linear interpolation function, wrapping Dierckx (copied from TC.jl)  =#
 function pyinterp(x, xp, fp)
-    # @show(x, xp, fp)
     spl = Dierckx.Spline1D(xp, fp; k = 1)
     return spl(vec(x))
 end
 
+"""
+    swapaxes(a, dim1, dim2)
 
+Swaps the two dimensions of an array.
+"""
 function swapaxes(a, dim1, dim2)
-    """
-    Swaps the two dimensions of an array.
-    """
     perm = collect(1:ndims(a))
     perm[dim1] = dim2
     perm[dim2] = dim1
     return permutedims(a, perm)
 end
 
+"""
+    align_along_dimension(v,dim)
+
+Assumes v has one non-singleton dimension which will be aligned along dim.
+if dim does not exist, v is expanded till dim exists
+"""
 function align_along_dimension(v,dim)
-    """
-    Assumes v has one non-singleton dimension which will be aligned along dim. if dim does not exist, v is expanded till dim exists
-    """
 
     sz = size(v)
     nd = ndims(v)
@@ -68,39 +53,42 @@ function align_along_dimension(v,dim)
     return v
 end
 
+"""
+    add_dim(vardata, dimnum)
+
+Allows you to add a dimension to a variable at the specified location
+"""
 function add_dim(vardata, dimnum)
-    """
-    Allows you to add a dimension to a variable at the specified location
-    """
     # both data need to be labeled
     sz_vardata = collect(size(vardata)) # array
-    insert!(sz_vardata,dimnum,1) # insert sz 1 at this location 
+    insert!(sz_vardata,dimnum,1) # insert sz 1 at this location
     return reshape(vardata, sz_vardata...) # reshape
 end
 
-function data_to_tsg(data; param_set=param_set)
-    """
-    Does this cause we don't have surface q values as of rn
-    """
-    thermo_params = SOCRATES_Single_Column_Forcings.TCP.thermodynamics_params(param_set)
+"""
+    data_to_tsg(data; thermo_params)
+
+Does this cause we don't have surface q values as of rn
+"""
+function data_to_tsg(data; thermo_params)
 
     Tg = data["Tg"]
     pg = data["Ps"]
 
     # not sure what to do at surface, so assuming saturation at surface
-    pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid()) 
-    molmass_ratio = TCP.molmass_ratio(param_set)
+    pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
+    molmass_ratio = TD.molmass_ratio(thermo_params)
 
     qg = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation
 
-    tsg = TD.PhaseEquil_pTq.(thermo_params, pg, Tg, qg) 
+    tsg = TD.PhaseEquil_pTq.(thermo_params, pg, Tg, qg)
     return tsg
 end
 
-function data_to_ts(data; do_combine_air_and_ground_data=false, param_set=param_set) # add type data is ncdataset
-    """
-    """
-    thermo_params = SOCRATES_Single_Column_Forcings.TCP.thermodynamics_params(param_set)
+"""
+    data_to_ts
+"""
+function data_to_ts(data; do_combine_air_and_ground_data=false, thermo_params) # add type data is ncdataset
 
     T = data["T"]
     q = data["q"]
@@ -113,7 +101,7 @@ function data_to_ts(data; do_combine_air_and_ground_data=false, param_set=param_
 
     if do_combine_air_and_ground_data
         concat_dim = get_dim_num("lev", T) # phaseequil reduces us down to lev... can't seem to just apply ufunc...
-        tsg = data_to_tsg(data;param_set=param_set)
+        tsg = data_to_tsg(data; thermo_params)
         ts = combine_air_and_ground_data(ts,tsg, concat_dim)
     end
 
@@ -133,9 +121,6 @@ end
 # end
 
 
-
-
-function lev_to_z_column(tsz; param_set=param_set, data=data)
 """
 Because we might not have monotonic data, we need to be able to both insert the ground data into our lev array where applicable and calculate our dz accordingly...
 I guess in principle you could throw out p < ps but then you wouldn't be able to return an even array out so either way this function would need to exist for padding and such...
@@ -144,13 +129,13 @@ tsz should be a one dimensional array consising of [ts..., tg]
 
 # to do -- add capability to use precomputed indices (insert_location)
 """
+function lev_to_z_column(tsz; thermo_params, data=data)
 
     ts  = tsz[1:end-1] # need to make it a vector I guess... (not sure if this screws wit output shape)
     tsg = tsz[end]
-    thermo_params = TCP.thermodynamics_params(param_set) # can we replace this and only rely on Thermodynamics?
-    R_d           = TCP.R_d(param_set) # TD.Parameters.R_d(thermo_params)
-    grav          = TCP.grav(param_set)  # TD.Parameters.grav(thermo_params)
-    
+    R_d           = TD.R_d(thermo_params)
+    grav          = TD.grav(thermo_params)
+
     # dimnames    = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
     # lev_dim_num = findfirst(x->x=="lev",dimnames)
     L           = length(ts)
@@ -178,23 +163,27 @@ tsz should be a one dimensional array consising of [ts..., tg]
 end
 
 # convert pressure to altitude...
-function lev_to_z( p::FT, T::FT, q::FT, pg::FT, Tg::FT, qg::FT; param_set=param_set, data=data) where {FT <: Real}
-    """
-    """
-    thermo_params = TCP.thermodynamics_params(param_set) # can we replace this and only rely on Thermodynamics?
-    ts            = TD.PhaseEquil_pTq.(thermo_params, p, T, q) 
-    tsg           = TD.PhaseEquil_pTq.(thermo_params, pg, Tg, qtg) 
-    return lev_to_z(ts, tsg; data=data)
+"""
+    lev_to_z
+
+TODO: document
+"""
+function lev_to_z( p::FT, T::FT, q::FT, pg::FT, Tg::FT, qg::FT; thermo_params, data) where {FT <: Real}
+    ts            = TD.PhaseEquil_pTq.(thermo_params, p, T, q)
+    tsg           = TD.PhaseEquil_pTq.(thermo_params, pg, Tg, qtg)
+    return lev_to_z(ts, tsg; data=data, thermo_params)
 end
 
 
-function lev_to_z(ts, tsg; param_set=param_set, data=data, assume_monotonic = false )
-    """
-    ts is thermodynamic state
-    tsg is thermodynamic state for ground
+"""
+    lev_to_z
 
-    if assume monotonic, everything should already be in the right order and we can use the vectorized version, otherwise we will use lev_to_z column applied column by column w/ mapslices
-    """
+ts is thermodynamic state
+tsg is thermodynamic state for ground
+
+if assume monotonic, everything should already be in the right order and we can use the vectorized version, otherwise we will use lev_to_z column applied column by column w/ mapslices
+"""
+function lev_to_z(ts, tsg; thermo_params, data, assume_monotonic = false )
 
     dimnames    = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
     lev_dim_num = findfirst(x->x=="lev",dimnames)
@@ -202,14 +191,13 @@ function lev_to_z(ts, tsg; param_set=param_set, data=data, assume_monotonic = fa
     L           = size(ts,lev_dim_num)
 
     if !assume_monotonic
-        tsz = combine_air_and_ground_data(ts,tsg,ldn;data=data,reshape_ground=true, insert_location=:end) # here we just want to assume monotonic so we can pass those to this fcn
-        z   = mapslices(x->lev_to_z_column(x;param_set=param_set,data=data), tsz; dims=ldn) # need to make a stack cause that's all mapslices can take...
+        tsz = combine_air_and_ground_data(ts,tsg,ldn;data,reshape_ground=true, insert_location=:end) # here we just want to assume monotonic so we can pass those to this fcn
+        z   = mapslices(x->lev_to_z_column(x;thermo_params,data), tsz; dims=ldn) # need to make a stack cause that's all mapslices can take...
     else
 
-        thermo_params = TCP.thermodynamics_params(param_set) # can we replace this and only rely on Thermodynamics?
-        R_d           = TCP.R_d(param_set) # TD.Parameters.R_d(thermo_params)
-        grav          = TCP.grav(param_set)  # TD.Parameters.grav(thermo_params)
-        
+        R_d           = TD.R_d(thermo_params) # TD.Parameters.R_d(thermo_params)
+        grav          = TD.grav(thermo_params)  # TD.Parameters.grav(thermo_params)
+
 
         # tsz       = cat(ts,tsg;dims=ldn)
         tsz       = combine_air_and_ground_data(ts,tsg,ldn;data=data,reshape_ground=true, insert_location=x->TD.air_pressure(thermo_params,x)) # this doesnt work cause sometimes ps is more than the lowest value in lev...
@@ -234,18 +222,20 @@ function lev_to_z(ts, tsg; param_set=param_set, data=data, assume_monotonic = fa
     return z
 end
 
-function z_from_data(data; param_set=param_set)
-    ts  = data_to_ts(data; param_set=param_set, do_combine_air_and_ground_data=false)
-    tsg = data_to_tsg(data; param_set=param_set)
-    return lev_to_z(ts, tsg; param_set=param_set, data=data)
+function z_from_data(data; thermo_params)
+    ts  = data_to_ts(data; thermo_params, do_combine_air_and_ground_data=false)
+    tsg = data_to_tsg(data; thermo_params)
+    return lev_to_z(ts, tsg; thermo_params, data)
 end
 
 
-function get_ground_insertion_indices(ts,tsg, concat_dim; param_set=param_set, data=data)
-    """
-    Get the indices where the ground tsg would fit into the array ts...
-    """
-    function mapslice_func(vect; by=x->TD.air_pressure(thermo_params,x))
+"""
+    get_ground_insertion_indices
+
+Get the indices where the ground tsg would fit into the array ts...
+"""
+function get_ground_insertion_indices(ts,tsg, concat_dim; thermo_params, data=data)
+    function mapslice_func(vect; thermo_params, by=x->TD.air_pressure(thermo_params,x))
         # @show(vect)
         vardata  = vect[1:end-1]
         vardatag = vect[end]
@@ -254,7 +244,7 @@ function get_ground_insertion_indices(ts,tsg, concat_dim; param_set=param_set, d
     end
     # reshape ( TODO!! # use add_dim )
     sz_tsg = collect(size(tsg)) # array
-    insert!(sz_tsg,concat_dim,1) # insert sz 1 at this location 
+    insert!(sz_tsg,concat_dim,1) # insert sz 1 at this location
     tsg =  reshape(tsg, sz_tsg...) # reshape (just adds the singleton dimension in)
     # concat and calculate
     ts = cat(ts,tsg; dims=concat_dim)
@@ -264,18 +254,20 @@ end
 
 
 
+"""
+    combine_air_and_ground_data
+
+var  : the data variable or string variable name for data in the air
+varg : the data variable or string variable name for data on the ground
+data : is a container from which the data can be accessed as a string in data[var(g)] form
+
+reshape_ground : expand the ground data to the same size as bottom slice of the air data (so you can pass in for example a single scalar or similar reduced dimension varg)
+assume_monotonic : assume that the ground value is actually below everything in the array... in reality sometimes we have for example a ground pressure above that of the minimum in this array... (should be faster than using insert_location )
+# might not need this anymore cause if insert_location is integer that jut works
+
+# atlas stated "We use hourly pressure level data interpolated onto a horizontal grid of 0.25° × 0.25° and 37 pressure levels from its native 137 hybrid sigma/pressure levels and 30 km horizontal grid." so i guess sometimes this causes slight problems
+"""
 function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape_ground=true, insert_location=:end)
-    """
-    var  : the data variable or string variable name for data in the air
-    varg : the data variable or string variable name for data on the ground
-    data : is a container from which the data can be accessed as a string in data[var(g)] form
-
-    reshape_ground : expand the ground data to the same size as bottom slice of the air data (so you can pass in for example a single scalar or similar reduced dimension varg)
-    assume_monotonic : assume that the ground value is actually below everything in the array... in reality sometimes we have for example a ground pressure above that of the minimum in this array... (should be faster than using insert_location )
-    # might not need this anymore cause if insert_location is integer that jut works
-
-    # atlas stated "We use hourly pressure level data interpolated onto a horizontal grid of 0.25° × 0.25° and 37 pressure levels from its native 137 hybrid sigma/pressure levels and 30 km horizontal grid." so i guess sometimes this causes slight problems
-    """
     # if data is a string, read the data out from data (creates data `vardata` from `var` whether var is string or already is data)
     vardata    = isa(var ,String) ? data[var ] : var
     vardatag   = isa(varg,String) ? data[varg] : varg
@@ -299,7 +291,7 @@ function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape
             sz_vardatag = collect(size(vardatag)) # array
             if ndims(vardatag) == (ndims(vardata)-1)
                 ## TODO USE add_dim
-                insert!(sz_vardatag,concat_dim,1) # insert sz 1 at this location 
+                insert!(sz_vardatag,concat_dim,1) # insert sz 1 at this location
                 vardatag =  reshape(vardatag, sz_vardatag...) # reshape (just adds the singleton dimension in)
             elseif ndims(vardatag) != ndims(vardata)
                 error("size mismath, var and varg should have the same number of dimensions or one less (for a missing lev dimension)")
@@ -314,7 +306,7 @@ function combine_air_and_ground_data(var,varg, concat_dim; data=nothing, reshape
     num_repeatg = sz_vardata .÷ sz_vardata # integer division
     num_repeat[ concat_dim] = 1 # don't repeat along concat dim
     num_repeatg[concat_dim] = 1 # don't repeat along concat dim
-    vardatag = repeat(vardatag, num_repeatg...) 
+    vardatag = repeat(vardatag, num_repeatg...)
     vardata  = repeat(vardata , num_repeat...)
 
     if insert_location == :end # here we assume the ground values are below the values we add automatically. (we used to use identity fcn but i think we don't need that)
@@ -357,10 +349,12 @@ end
 
 
 
+"""
+    get_dim_num
+
+get the dimension number of dim from nc_data
+"""
 function get_dim_num(dim,nc_data=nothing)
-    """
-    get the dimension number of dim from nc_data
-    """
 
     # convert interp_dim to a number stored in interp_dim_num
     if isa(dim, Number) # already a string, just returns...
@@ -372,33 +366,36 @@ function get_dim_num(dim,nc_data=nothing)
         elseif isa(nc_data,NC.NCDataset)
             @warn("dimension number for a dataset is not well defined, use a speciifc NC.CFVariable instead")
         elseif isa(nc_data, AbstractArray)
-            error("cannot find dimension $(dim) in unlabeled data nc_data, pass in a labeled NCDataset instead...")    
+            error("cannot find dimension $(dim) in unlabeled data nc_data, pass in a labeled NCDataset instead...")
         else
-            error("unsupported input type for nc_data $(typeof(nc_data))")            
+            error("unsupported input type for nc_data $(typeof(nc_data))")
         end
-    end       
+    end
     return dim_num
 end
 
 
 
+"""
+    interp_along_dim
+
+interpolation data
+
+# var : the data to be interpolated
+# interp_dim: the name or dimension number along which we will do interpolation
+
+# interp_dim_in: the coordinate on which the data is currently aligned
+# interp_dim_out: the coordinate on which we would like to interpolate the data to
+
+the function will create splines along interp_dim_in...
+- if we set interp_dim_out, we actually evaluate the function along interp_dim at locations interp_dim_out,otherwise, we just return our unevaluated spline functions
+
+- data_func is a func to be applied to the raw data before it is processed, though perhaps it it most useful if interp_dim_out is unset and we are returning functions...
+- vectorize_in means your input is an array and you need to loop over it too (as opposed to just being a fixed template vector)
+
+To Do : decide types
+"""
 function interp_along_dim(var, interp_dim, interp_dim_in; interp_dim_out=nothing,data=nothing, data_func = nothing, interp_dim_in_is_full_array=true, reshape_ground=true, verbose=false)
-    " interpolation data 
-
-    # var : the data to be interpolated
-    # interp_dim: the name or dimension number along which we will do interpolation
-
-    # interp_dim_in: the coordinate on which the data is currently aligned 
-    # interp_dim_out: the coordinate on which we would like to interpolate the data to  
-
-    the function will create splines along interp_dim_in...
-    - if we set interp_dim_out, we actually evaluate the function along interp_dim at locations interp_dim_out,otherwise, we just return our unevaluated spline functions
-
-    - data_func is a func to be applied to the raw data before it is processed, though perhaps it it most useful if interp_dim_out is unset and we are returning functions...
-    - vectorize_in means your input is an array and you need to loop over it too (as opposed to just being a fixed template vector)
-
-    To Do : decide types
-    "
 
     # if data is a string, read the data out from data (creates data `vardata` from `var` whether var is string or already is data)
     vardata    = isa(var ,String) ? data[var ] : var
@@ -407,11 +404,11 @@ function interp_along_dim(var, interp_dim, interp_dim_in; interp_dim_out=nothing
     # get the interpolation dimension and combine air and ground data
     interp_dim_num = get_dim_num(interp_dim, vardata)
     # vardata        = combine_air_and_ground_data(vardata ,vardatag, interp_dim_num; data=nothing, reshape_ground=true) # combine air and ground data... (also resolves strings to data)
- 
+
     if !isnothing(data_func) # apply data_func if we need to
         vardata  = data_func(vardata)
     end
- 
+
     # mapslices to apply along timedim, see https://docs.julialang.org/en/v1/base/arrays/#Base.mapslices
     if !interp_dim_in_is_full_array
         if isnothing(interp_dim_out)
@@ -455,10 +452,12 @@ end
 #     return interp_along_dim(vardata, interp_dim, reverse(z; dims=interp_dim); interp_dim_out=new_z, data_func=data_func, kwargs...)
 # end
 
+"""
+    var_to_new_coord
+
+if coord_new is nothing, then will return functions...
+"""
 function var_to_new_coord(var,coord_in, interp_dim; coord_new=nothing, data=nothing, data_func=nothing, kwargs...)
-    """
-    if coord_new is nothing, then will return functions...
-    """
     vardata    = isa(var ,String) ? data[var ] : var
     if ~isnothing(data)
         interp_dim = isa(interp_dim, String) ? get_dim_num(interp_dim, data) : interp_dim # if interp_dim is a string, you need to provide the underlying data so we can get this dimension
@@ -471,13 +470,15 @@ function var_to_new_coord(var,coord_in, interp_dim; coord_new=nothing, data=noth
 end
 
 
-function get_data_new_z_t(var, z_new, z_dim, time_dim; varg=nothing, z_old=nothing, t_old=nothing, data=nothing, param_set=param_set, initial_condition = false, assume_monotonic=false)
-    """
-    Take data from our base setup, interpolate it to new z, then create time splines based on the t we have....
-    to vectorize properly over z_new, it should be the same shape as vardata+vardata_g
-    """
+"""
+    get_data_new_z_t
 
-    # get the data and dimensions we're working on, 
+Take data from our base setup, interpolate it to new z, then create time splines based on the t we have....
+to vectorize properly over z_new, it should be the same shape as vardata+vardata_g
+"""
+function get_data_new_z_t(var, z_new, z_dim, time_dim; thermo_params, varg=nothing, z_old=nothing, t_old=nothing, data=nothing, initial_condition = false, assume_monotonic=false)
+
+    # get the data and dimensions we're working on,
     vardata    = isa(var ,String) ? data[var ] : var
     if ~isnothing(varg)
         vardatag   = isa(varg,String) ? data[varg] : varg
@@ -493,10 +494,8 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim; varg=nothing, z_old=nothi
     end
 
 
-
-
     if isnothing(z_old)
-        z_old = z_from_data(data; param_set=param_set); # uses ground value to create the old z, pads bottom w/ 0
+        z_old = z_from_data(data; thermo_params); # uses ground value to create the old z, pads bottom w/ 0
     end
     if isnothing(t_old)
         t_old = data["tsec"][:] # check this unit was right in the files (may need to make sure it's subtracting out the first timestep so starts at 0) -- do we need to align this on a dimension?
@@ -548,45 +547,22 @@ function drop_lat_lon(vardata; data=nothing, dims=nothing)
     return vardata
 end
 
+"""
+    insert_dims
+
+add in new dimensions at position (never seemed to use , could get rid of this?)
+"""
 function insert_dims(data, ind; new_dim_sizes=[-1])
-    """
-    add in new dimensions at position (never seemed to use , could get rid of this?)
-    """
     sz_data = collect(size(data)) # array
     # insert!(sz_data,ind, new_dim_sizes[1]) # insert sz 1 at this location # can only do one dim
     splice!(sz_data,ind, [ new_dim_sizes..., sz_data[ind]]) # do this way cause splice itself deletes the current value so preserve it
     data =  reshape(data, sz_data...) # reshape
 end
 
-function calc_qg(Tg,pg)
-    pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid()) 
-    molmass_ratio = TCP.molmass_ratio(param_set)
+function calc_qg(Tg,pg; thermo_params)
+    pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
+    molmass_ratio = TD.molmass_ratio(thermo_params)
     qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
     return qg
 end
 
-
-
-# =================== #
-
-function main()
-    data = load_data()
-    nothing
- end
-
-
- if abspath(PROGRAM_FILE) == @__FILE__
-     main()
- end
-
-
- function test()
-    data = SOCRATES_Single_Column_Forcings.open_atlas_les_profile(9);
-    new_z = data[:grid_data]
-    data = data[:obs_data]
-
-
-    T_new_z_t     = get_data_new_z_t("T", "Tg", new_z,"lev","time", data=data, param_set=param_set)
-    T_new_z_init  = get_data_new_z_t("T", "Tg", new_z,"lev","time", data=data, param_set=param_set,  initial_condition=true)
-
-end

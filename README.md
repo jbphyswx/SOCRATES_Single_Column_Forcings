@@ -1,4 +1,4 @@
-# SOCRATES_Single_Column_Forcings
+# SOCRATESSingleColumnForcings
 
 This repository includes scripts to take in SOCRATES flight data and create both 2D [lev,time] datasets and 1D [lev] columns of time-interpoloation functions to force the CliMa EDMF Turbulence-Convection single-column model.
 
