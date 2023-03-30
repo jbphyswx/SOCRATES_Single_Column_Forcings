@@ -11,10 +11,6 @@ function open_atlas_les_profile(flight_number::Int)
     ERA5_filename = joinpath(atlas_dir, RF_num * "_ERA5-based_SAM_input_mar18_2022.nc") # e.g. https://atmos.uw.edu/~ratlas/RF12_ERA5-based_SAM_input_mar18_2022.nc
     grid_filename = joinpath(atlas_dir, RF_num * "_grd.txt")
 
-    @assert isfile(obs_filename)
-    @assert isfile(ERA5_filename)
-    @assert isfile(grid_filename)
-
     # @show(obs_filename, ERA5_filename, grid_filename)
 
     local obs_data, ERA5_data, grid_data # initialize cause try catch scope is closed
