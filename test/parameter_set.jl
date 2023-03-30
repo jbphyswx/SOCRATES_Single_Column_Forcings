@@ -177,19 +177,3 @@ function create_parameter_set(
     end
     return param_set
 end
-#! format: on
-Footer
-© 2023 GitHub, Inc.
-Footer navigation
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-TurbulenceConvection.jl/parameter_set.jl at 99d35cafd158d8793fa744f773d5f942d6e74488 · CliMA/TurbulenceConvection.jl
