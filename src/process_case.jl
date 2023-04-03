@@ -15,7 +15,7 @@ If initial_condition is false, returns the data at time 0, if true, returns full
 
 Some things are always forced by ERA5, otherwise we pull from whatever obs_or_ERA5 specifies... (list which is which?)
 """
-function open_atlas_les_input(
+function process_case(
         flight_number::Int;
         obs_or_ERA5 = "Obs"::Union{String,Symbol},
         new_z::Union{Nothing,AbstractArray}=nothing,
@@ -29,7 +29,7 @@ function open_atlas_les_input(
     ## Plan -- create a stored variable "combine_z_dim" or something like that that you can pass around that tells you where to insert the values from ground into the full array in combine_air_and_ground data -- and some argument that uses that variable to supplant other options (or make another func?)
 
     # initial conditions
-    data  = open_atlas_les_profile(flight_number);
+    data  = open_atlas_les_input(flight_number);
 
     if isnothing(new_z)
         new_z = data[:grid_data]
