@@ -7,8 +7,8 @@ The profiles are created off the data used to force LES simulations by Atlas, 20
 The output data are too large to store here and so will be stored in box. They 1D functions are interpolated to the grid that Atlas used, but functions are provided to interpolate to your own grid/time and return either raw data in time or a column of spline functions...
 
 
-You can retrieve data using `/Data/Atlas_LES_Profiles/download_atlas_les_profiles.jl`
-You can load retrieved data using  `/Data/Atlas_LES_Profiles/load_atlas_les_profiles.jl`
+You can retrieve data using `/Data/Atlas_LES_Profiles/download_atlas_les_inputs.jl`
+You can load retrieved data using  `/Data/Atlas_LES_Profiles/load_atlas_les_inputs.jl`
 
 The original profiles are also stored in `/Data/Atlas_LES_Profiles/`
 
