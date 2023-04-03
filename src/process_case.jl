@@ -15,7 +15,7 @@ If initial_condition is false, returns the data at time 0, if true, returns full
 
 Some things are always forced by ERA5, otherwise we pull from whatever obs_or_ERA5 specifies... (list which is which?)
 """
-function process_case(
+function open_atlas_les_input(
         flight_number::Int;
         obs_or_ERA5 = "Obs"::Union{String,Symbol},
         new_z::Union{Nothing,AbstractArray}=nothing,

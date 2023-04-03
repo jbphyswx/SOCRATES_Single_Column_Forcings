@@ -23,8 +23,8 @@ const grid_heights = Dict(
     13 => 192,
 )
 
-# include(joinpath("..", "Data", "Atlas_LES_Profiles", "download_atlas_les_profiles.jl"))
-include("open_atlas_les_profiles.jl")
+# include(joinpath("..", "Data", "Atlas_LES_Profiles", "download_atlas_les_profiles.jl")) # not in src so don't include automatically
+include("open_atlas_les_inputs.jl")
 include("helper_functions.jl")
 include("process_case.jl")
 

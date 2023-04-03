@@ -1,11 +1,11 @@
 """
-    open_atlas_les_profile(flight_number::Int)
+open_atlas_les_input(flight_number::Int)
 
 opens the files downloaded in download_atlas_les_profiles.jl
 """
-function open_atlas_les_profile(flight_number::Int)
+function open_atlas_les_input(flight_number::Int)
     FT = Float64 # idk how to pass on a type here without necessarily having to give a variable...
-    atlas_dir = joinpath(dirname(@__DIR__), "Data", "Atlas_LES_Profiles") # doesn't seem to work to use @__DIR__ directly as a variable
+    atlas_dir = joinpath(dirname(@__DIR__), "Data", "Atlas_LES_Profiles", "Input_Data") # doesn't seem to work to use @__DIR__ directly as a variable
     RF_num = "RF" * string(flight_number,pad=2)
     obs_filename  = joinpath(atlas_dir, RF_num * "_obs-based_SAM_input.nc") # e.g. https://atmos.uw.edu/~ratlas/RF12_obs-based_SAM_input.nc
     ERA5_filename = joinpath(atlas_dir, RF_num * "_ERA5-based_SAM_input_mar18_2022.nc") # e.g. https://atmos.uw.edu/~ratlas/RF12_ERA5-based_SAM_input_mar18_2022.nc
