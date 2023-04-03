@@ -35,12 +35,13 @@ function process_case(
         new_z = data[:grid_data]
     end
 
-    data = data[(:obs_data,:ERA5_data)]
 
     if obs_or_ERA5 == "Obs"
         forcing = :obs_data
+        data = data[(:obs_data,:ERA5_data)]
     elseif obs_or_ERA5 == "ERA5"
         forcing = :ERA5_data
+        data = data[(:ERA5_data,)] # drop obs if we're doing era5 cause we don't need it (11 has no obs either i think)        
     else
         if obs_or_ERA5 ∉ [:obs_data, :ERA5_data, "Obs","ERA5"]
             error("obs_or_ERA5 must be either \"Obs\"/[:obs_data] or \"ERA5\"/[:ERA5_data]")
@@ -58,7 +59,6 @@ function process_case(
 
     # We use map here on individual variables mostly as many of them are no longer constituent variables of data so we must construct fcns with them separately
 
-    data = data[(:obs_data,:ERA5_data)]
 
 
     if ~isnothing(surface) #(is always ERA5)
