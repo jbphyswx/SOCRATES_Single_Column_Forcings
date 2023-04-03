@@ -8,7 +8,9 @@
 # Data files
 *.DS_Store
 !docs/src/assets/*.png
-*.nc
+# *.nc
+Rachel_Atlas_Scripts/*.nc
+Data/Atlas_LES_Profiles/Output_Data/*.nc
 *.png
 *.json
 *.in
