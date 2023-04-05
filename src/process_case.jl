@@ -211,7 +211,7 @@ end
 
 
 function get_default_new_z(flight_number::Int;)
-    data  = open_atlas_les_profile(flight_number);
+    data  = open_atlas_les_input(flight_number);
     new_z = data[:grid_data]
     return new_z
 end
