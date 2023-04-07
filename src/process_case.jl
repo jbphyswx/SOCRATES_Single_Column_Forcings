@@ -36,10 +36,10 @@ function process_case(
     end
 
 
-    if obs_or_ERA5 == "Obs"
+    if obs_or_ERA5 ∈ ["Obs", :obs_data]
         forcing = :obs_data
         data = data[(:obs_data,:ERA5_data)]
-    elseif obs_or_ERA5 == "ERA5"
+    elseif obs_or_ERA5 ∈ ["ERA5", :ERA5_data]
         forcing = :ERA5_data
         data = data[(:ERA5_data,)] # drop obs if we're doing era5 cause we don't need it (11 has no obs either i think)        
     else
