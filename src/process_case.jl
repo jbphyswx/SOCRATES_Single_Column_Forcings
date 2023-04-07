@@ -66,6 +66,7 @@ function process_case(
             Tg = data[:ERA5_data]["Tg"][:][1] # might have to drop lon,lat dims or sum
             pg = data[:ERA5_data]["Ps"][:][1]
             qg = calc_qg(Tg, pg; thermo_params)
+            qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
             return TD.PhaseEquil_pTq(thermo_params, pg , Tg , qg )
         elseif surface ∈ ["surface_conditions", "conditions","cond"]
             Tg = vec(data[:ERA5_data]["Tg"])[:] # might have to drop lon,lat dims or sum
