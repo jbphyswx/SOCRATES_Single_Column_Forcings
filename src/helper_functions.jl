@@ -500,7 +500,8 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim, flight_number; thermo_par
         t_old = data["tsec"][:] # check this unit was right in the files (may need to make sure it's subtracting out the first timestep so starts at 0) -- do we need to align this on a dimension?
     end
 
-    t_base = Dates.DateTime(string(data["nbdate"][:]), Dates.DateFormat("yymmdd")) + Dates.Year(2000) # the base Dates
+    print(data["bdate"][:])
+    t_base = Dates.DateTime(string(data["bdate"][:]), Dates.DateFormat("yymmdd")) + Dates.Year(2000) # the base Date (using bdate not nbdate cause nbdate seems to have  bug in flight 9 (extra 0 in month spot))
     t      = t_base .+ Dates.Second.(t_old) # the actual dates
     summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
     SOCRATES_summary = NC.Dataset(summary_file,"r")
