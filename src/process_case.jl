@@ -195,16 +195,16 @@ function process_case(
     dqtdt_hadv = data[:ERA5_data]["divq"]
     dqtdt_hadv = combine_air_and_ground_data(dqtdt_hadv,FT(0),z_dim_num; insert_location=ground_indices[:ERA5_data])
     # expand everything to new z grid and make t operation (initial condition or time splines)
-    dTdt_hadv  = get_data_new_z_t(dTdt_hadv , new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
-    H_nudge    = get_data_new_z_t(H_nudge   , new_z, z_dim_num,time_dim_num; z_old = z_old[forcing]   , data=data[forcing]   , thermo_params,  initial_condition)
-    dqtdt_hadv = get_data_new_z_t(dqtdt_hadv, new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
-    qt_nudge   = get_data_new_z_t(qt_nudge  , new_z, z_dim_num,time_dim_num; z_old = z_old[forcing]   , data=data[forcing]   , thermo_params,  initial_condition)
-    subsidence = get_data_new_z_t(subsidence, new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
-    u_nudge    = get_data_new_z_t(u_nudge   , new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
-    v_nudge    = get_data_new_z_t(v_nudge   , new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
+    dTdt_hadv  = get_data_new_z_t(dTdt_hadv , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
+    H_nudge    = get_data_new_z_t(H_nudge   , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing]   , data=data[forcing]   , thermo_params,  initial_condition)
+    dqtdt_hadv = get_data_new_z_t(dqtdt_hadv, new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
+    qt_nudge   = get_data_new_z_t(qt_nudge  , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing]   , data=data[forcing]   , thermo_params,  initial_condition)
+    subsidence = get_data_new_z_t(subsidence, new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
+    u_nudge    = get_data_new_z_t(u_nudge   , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
+    v_nudge    = get_data_new_z_t(v_nudge   , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
 
-    ug_nudge   = get_data_new_z_t(ug_nudge , new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
-    vg_nudge   = get_data_new_z_t(vg_nudge , new_z, z_dim_num,time_dim_num; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
+    ug_nudge   = get_data_new_z_t(ug_nudge  , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
+    vg_nudge   = get_data_new_z_t(vg_nudge  , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[:ERA5_data], data=data[:ERA5_data], thermo_params,  initial_condition)
 
     return  (; dTdt_hadv, H_nudge, dqtdt_hadv, qt_nudge, subsidence, u_nudge, v_nudge, ug_nudge, vg_nudge)
 

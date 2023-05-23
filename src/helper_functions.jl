@@ -475,7 +475,7 @@ end
 Take data from our base setup, interpolate it to new z, then create time splines based on the t we have....
 to vectorize properly over z_new, it should be the same shape as vardata+vardata_g
 """
-function get_data_new_z_t(var, z_new, z_dim, time_dim; thermo_params, varg=nothing, z_old=nothing, t_old=nothing, data=nothing, initial_condition = false, assume_monotonic=false)
+function get_data_new_z_t(var, z_new, z_dim, time_dim, flight_number; thermo_params, varg=nothing, z_old=nothing, t_old=nothing, data=nothing, initial_condition = false, assume_monotonic=false)
 
     # get the data and dimensions we're working on,
     vardata    = isa(var ,String) ? data[var ] : var
@@ -500,9 +500,16 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim; thermo_params, varg=nothi
         t_old = data["tsec"][:] # check this unit was right in the files (may need to make sure it's subtracting out the first timestep so starts at 0) -- do we need to align this on a dimension?
     end
 
+    t_base = Dates.DateTime(string(data["nbdate"][:]), Dates.DateFormat("yymmdd")) + Dates.Year(2000) # the base Dates
+    t      = t_base .+ Dates.Second.(t_old) # the actual dates
+    summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
+    SOCRATES_summary = NC.Dataset(summary_file,"r")
+    flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
+    initial_time = SOCRATES_summary["reference_time"][flight_ind] - Dates.Hour(12) # change to select by flight number...
+    initial_ind = argmin(abs.((t.-initial_time))) # find the index of the initial time
+
     if ~isnothing(varg)
         # here we also are gonna need to check where things get inserted in case they are not in order...
-
         if !assume_monotonic # use data to figure out how and where to do insertions...
             # we need some way to get the local dimension from just a variable
         else
@@ -510,10 +517,14 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim; thermo_params, varg=nothi
         end
     end
 
-    # select only the first timestep, but keep that dimension around w/ []
-    if initial_condition
-        vardata  = selectdim(vardata, time_dim_num, [1])
-        z_old    = selectdim(z_old, time_dim_num, [1])
+    # select only the initial condition timestep, but keep that dimension around w/ []
+    # note -- if not the initial condition, we should still only return initial condition to reference timestep no? (or i guess at least just from the initial condition to the end of the data we have...)
+    if initial_condition # the timestep that is closest to the one we are supposed to force with (should be reference time - 12 hours)
+        vardata  = selectdim(vardata, time_dim_num, [initial_ind])
+        z_old    = selectdim(z_old, time_dim_num, [initial_ind])
+    else # not init condition, so we'll truncate from init condition to end along time dimension
+        vardata  = selectdim(vardata, time_dim_num, initial_ind:length(t_old))
+        z_old    = selectdim(z_old, time_dim_num, initial_ind:length(t_old))
     end
 
     # reverse the z so it goes from ground to top) and matches the new grid we defined..
