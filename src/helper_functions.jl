@@ -500,7 +500,6 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim, flight_number; thermo_par
         t_old = data["tsec"][:] # check this unit was right in the files (may need to make sure it's subtracting out the first timestep so starts at 0) -- do we need to align this on a dimension?
     end
 
-    print(data["bdate"][:])
     t_base = Dates.DateTime(string(data["bdate"][:]), Dates.DateFormat("yymmdd")) + Dates.Year(2000) # the base Date (using bdate not nbdate cause nbdate seems to have  bug in flight 9 (extra 0 in month spot))
     t      = t_base .+ Dates.Second.(t_old) # the actual dates
     summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
@@ -538,7 +537,9 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim, flight_number; thermo_par
         return vardata
     end
     # create new time splines
-    vardata = var_to_new_coord(vardata, t_old, time_dim_num; coord_new=nothing, data=data)
+
+    # i thnk here should be t_old[initial_ind:end] -- we want to keep only from initial condition timestep
+    vardata = var_to_new_coord(vardata, t_old[initial_ind:end], time_dim_num; coord_new=nothing, data=data)
 
     return vardata
 end
