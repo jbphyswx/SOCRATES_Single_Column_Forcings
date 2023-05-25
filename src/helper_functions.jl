@@ -539,7 +539,8 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim, flight_number; thermo_par
     # create new time splines
 
     # i thnk here should be t_old[initial_ind:end] -- we want to keep only from initial condition timestep
-    vardata = var_to_new_coord(vardata, t_old[initial_ind:end], time_dim_num; coord_new=nothing, data=data)
+    # when creating the splines, should we use t_old[initial_ind:end] .- t_old[initial_ind]? since the time in the model callling will always start @ t=0
+    vardata = var_to_new_coord(vardata, t_old[initial_ind:end] .- t_old[initial_ind], time_dim_num; coord_new=nothing, data=data)
 
     return vardata
 end
