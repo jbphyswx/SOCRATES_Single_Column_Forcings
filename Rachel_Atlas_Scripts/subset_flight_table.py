@@ -24,7 +24,12 @@ def subset_flight_table(leg_types,flights,min_time,MakeFile=False,MakeArray=Fals
   import os
 
   #DO NOT CHANGE THIS PATH- the most updated leg table will be here 
-  path = '~/for_jordan/'
+  thisdir = os.path.dirname(os.path.realpath(__file__))
+
+  # print(os.path.realpath(__file__))
+  # print(thisdir)
+
+  path = thisdir
 
   #T=Tarmac, F=Ferry, U=Up sounding, D=Down sounding, C=In-cloud level   #leg, B=Below cloud level leg, A=Above cloud level leg, S=Sawtooth,
   #CL=Clear sky
@@ -57,27 +62,45 @@ def subset_flight_table(leg_types,flights,min_time,MakeFile=False,MakeArray=Fals
     n=n+1
     
   #Load the flight table
-  leg_table=np.loadtxt(path+'flight_table/flight_leg_table.txt',delimiter=',	',dtype=object)
+  # conv = lambda s: s.translate({ord(i): '' for i in [' ', '\t']}) # replace unicode for these characters with nothing
+  # conv = lambda s: s
+  # leg_table=np.loadtxt(path+'/flight_leg_table.txt',delimiter=',', converters=conv, dtype=object)
+  leg_table = pd.read_csv(path+'/flight_leg_table.txt',delimiter=',', header=1, skipinitialspace=True)
+  leg_table = leg_table.replace({'\t':''}, regex=True) # remove tabs
+  # leg_table = leg_table.apply(lambda x: x.str.strip() if x.dtype == "object" else x) # strip whitespace
+
+  # print(leg_table)
+
+  leg_table_numpy = leg_table.to_numpy()
 
   #Select legs that match all of the input requirements
-  leg_length=pd.to_numeric(leg_table[:,5])-pd.to_numeric(leg_table[:,4])
-  leg_type_index=np.where(np.isin(leg_table[:,3],leg_types) == True)
+  leg_length=pd.to_numeric(leg_table_numpy[:,5])-pd.to_numeric(leg_table_numpy[:,4])
+  leg_type_index=np.where(np.isin(leg_table_numpy[:,3],leg_types) == True)
   time_index=np.where(leg_length >= min_time)
-  flight_index=np.where(np.isin(leg_table[:,1],flights) == True)
+  flight_index=np.where(np.isin(leg_table_numpy[:,1],flights) == True)
+
+  # print((leg_table[:,3], leg_types))
+  # print(sum(leg_type_index))
+  # print(sum(time_index))
+
   subset=np.intersect1d(np.intersect1d(leg_type_index,time_index),flight_index)
 
+  # print(subset)
+
+
+
   #Print leg data to the terminal
-  for subset_ind in subset:
-    print('Flight: {}'.format(''.join(leg_table[subset_ind,1])))
-    print('Leg Type: {}'.format(''.join(leg_table[subset_ind,3])))
-    print('Index: {}'.format(''.join(leg_table[subset_ind,4])),' - {}'.format(''.join(leg_table[subset_ind,5])),)
-    print('Time: {}'.format(''.join(leg_table[subset_ind,6])),' - {}'.format(''.join(leg_table[subset_ind,7])),)
-    print('Latitude: {}'.format(''.join(leg_table[subset_ind,8])),' - {}'.format(''.join(leg_table[subset_ind,9])),)
-    print('Longitude: {}'.format(''.join(leg_table[subset_ind,10])),' - {}'.format(''.join(leg_table[subset_ind,11])),)
-    print('Altitude: {}'.format(''.join(leg_table[subset_ind,12])),' - {}'.format(''.join(leg_table[subset_ind,13])),)
-    print('Temperature: {}'.format(''.join(leg_table[subset_ind,14])),' - {}'.format(''.join(leg_table[subset_ind,15])),)
-    print('')
-    print('')
+  # for subset_ind in subset:
+  #   print('Flight: {}'.format(''.join(leg_table[subset_ind,1])))
+  #   print('Leg Type: {}'.format(''.join(leg_table[subset_ind,3])))
+  #   print('Index: {}'.format(''.join(leg_table[subset_ind,4])),' - {}'.format(''.join(leg_table[subset_ind,5])),)
+  #   print('Time: {}'.format(''.join(leg_table[subset_ind,6])),' - {}'.format(''.join(leg_table[subset_ind,7])),)
+  #   print('Latitude: {}'.format(''.join(leg_table[subset_ind,8])),' - {}'.format(''.join(leg_table[subset_ind,9])),)
+  #   print('Longitude: {}'.format(''.join(leg_table[subset_ind,10])),' - {}'.format(''.join(leg_table[subset_ind,11])),)
+  #   print('Altitude: {}'.format(''.join(leg_table[subset_ind,12])),' - {}'.format(''.join(leg_table[subset_ind,13])),)
+  #   print('Temperature: {}'.format(''.join(leg_table[subset_ind,14])),' - {}'.format(''.join(leg_table[subset_ind,15])),)
+  #   print('')
+  #   print('')
 
   #If MakeFile=True, make a new text file with the subsetted leg data
   if MakeFile:
@@ -88,5 +111,6 @@ def subset_flight_table(leg_types,flights,min_time,MakeFile=False,MakeArray=Fals
 
   #If MakeArray=True, return an array with the subsetted data
   if MakeArray:
-     print(leg_table[subset,:])
-     return leg_table[subset,:]
+    # print(leg_table.loc[subset])
+    #  return leg_table[subset,:]
+    return leg_table.loc[subset]
