@@ -500,13 +500,14 @@ function get_data_new_z_t(var, z_new, z_dim, time_dim, flight_number; thermo_par
         t_old = data["tsec"][:] # check this unit was right in the files (may need to make sure it's subtracting out the first timestep so starts at 0) -- do we need to align this on a dimension?
     end
 
-    t_base = Dates.DateTime(string(data["bdate"][:]), Dates.DateFormat("yymmdd")) + Dates.Year(2000) # the base Date (using bdate not nbdate cause nbdate seems to have  bug in flight 9 (extra 0 in month spot))
-    t      = t_base .+ Dates.Second.(t_old) # the actual dates
-    summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
-    SOCRATES_summary = NC.Dataset(summary_file,"r")
-    flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
-    initial_time = SOCRATES_summary["reference_time"][flight_ind] - Dates.Hour(12) # change to select by flight number...
-    initial_ind = argmin(abs.((t.-initial_time))) # find the index of the initial time
+    # t_base = Dates.DateTime(string(data["bdate"][:]), Dates.DateFormat("yymmdd")) + Dates.Year(2000) # the base Date (using bdate not nbdate cause nbdate seems to have  bug in flight 9 (extra 0 in month spot))
+    # t      = t_base .+ Dates.Second.(t_old) # the actual dates
+    # summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
+    # SOCRATES_summary = NC.Dataset(summary_file,"r")
+    # flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
+    # initial_time = SOCRATES_summary["reference_time"][flight_ind] - Dates.Hour(12) # change to select by flight number...
+    # initial_ind = argmin(abs.((t.-initial_time))) # find the index of the initial time
+    initial_ind = get_initial_ind(data, flight_number, t_old=t_old)
 
     if ~isnothing(varg)
         # here we also are gonna need to check where things get inserted in case they are not in order...
@@ -572,6 +573,10 @@ function insert_dims(data, ind; new_dim_sizes=[-1])
     data =  reshape(data, sz_data...) # reshape
 end
 
+"""
+Currently this is setup to just assume saturation w/ Tg 
+However, this doesn't match Atlas's simulations so maybe we'll adjust this to just be an adiabatic adjustment to the lowest datapoint we do have?
+"""
 function calc_qg(Tg,pg; thermo_params)
     pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
     molmass_ratio = TDP.molmass_ratio(thermo_params)
@@ -579,3 +584,22 @@ function calc_qg(Tg,pg; thermo_params)
     return qg
 end
 
+"""
+Retrieve the starting index for our LES simulations (12 hours before reference file) in the forcing data
+"""
+function get_initial_ind(data, flight_number::Int; t_old = nothing)
+    if isnothing(t_old)
+        t_old = data["tsec"][:] # check this unit was right in the files (may need to make sure it's subtracting out the first timestep so starts at 0) -- do we need to align this on a dimension?
+    end
+
+    t_base = Dates.DateTime(string(data["bdate"][:]), Dates.DateFormat("yymmdd")) + Dates.Year(2000) # the base Date (using bdate not nbdate cause nbdate seems to have  bug in flight 9 (extra 0 in month spot))
+    t      = t_base .+ Dates.Second.(t_old) # the actual dates
+
+    summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
+    SOCRATES_summary = NC.Dataset(summary_file,"r")
+
+    flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
+    initial_time = SOCRATES_summary["reference_time"][flight_ind] - Dates.Hour(12) # change to select by flight number...
+    initial_ind = argmin(abs.((t.-initial_time))) # find the index of the initial time
+    return initial_ind
+end

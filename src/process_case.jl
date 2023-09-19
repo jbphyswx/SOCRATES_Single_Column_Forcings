@@ -56,24 +56,25 @@ function process_case(
     z_dim_num    = get_dim_num( "lev", data[forcing]["T"])
     time_dim_num = get_dim_num("time", data[forcing]["T"])
 
-
     # We use map here on individual variables mostly as many of them are no longer constituent variables of data so we must construct fcns with them separately
 
-
-
+    ## For surface values, adjust to the time period of interest and return only the surface values, these are called in TC.jl
     if ~isnothing(surface) #(is always ERA5)
+        initial_ind = get_initial_ind(data[:ERA5_data], flight_number) # should the reference be the first timestep? or what is the reference meant to be...
         if surface ∈ ["reference_state", "reference","ref"]  # we just want the surface reference state and we'll just return that
-            Tg = data[:ERA5_data]["Tg"][:][1] # might have to drop lon,lat dims or sum
-            pg = data[:ERA5_data]["Ps"][:][1]
+            Tg = data[:ERA5_data]["Tg"][:][initial_ind] # might have to drop lon,lat dims or sum
+            pg = data[:ERA5_data]["Ps"][:][initial_ind]
             qg = calc_qg(Tg, pg; thermo_params)
             qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
             return TD.PhaseEquil_pTq(thermo_params, pg , Tg , qg )
         elseif surface ∈ ["surface_conditions", "conditions","cond"]
-            Tg = vec(data[:ERA5_data]["Tg"])[:] # might have to drop lon,lat dims or sum
-            pg = vec(data[:ERA5_data]["Ps"])[:]
+            Tg = vec(data[:ERA5_data]["Tg"])[:][initial_ind:end] # might have to drop lon,lat dims or sum
+            pg = vec(data[:ERA5_data]["Ps"])[:][initial_ind:end]
             qg = calc_qg(Tg, pg; thermo_params)
-            return (;pg=t->pyinterp([t], data[forcing]["tsec"][:], pg)[1], Tg=t->pyinterp([t], data[forcing]["tsec"][:], Tg)[1], qg=t->pyinterp([t], data[forcing]["tsec"][:], qg)[1] ) # would use ref and broadcast but doesnt convert back to array
-
+            tg = data[forcing]["tsec"][initial_ind:end] # get the time array
+            tg = tg .- tg[1] # i think we need this to get the initial time to be 0, so the interpolation works
+            # in this interpolation, tsec has to be adjusted to our offsets no? or we clip e.g. pg to be pg[initial_ind:end], tsec would also need to be adjusted no?, subtract the value at initial_ind i guess...
+            return (;pg=t->pyinterp([t], tg, pg)[1], Tg=t->pyinterp([t], tg, Tg)[1], qg=t->pyinterp([t], tg, qg)[1] ) # would use ref and broadcast but doesnt convert back to array
         else
             error("if surface is not set to nothing (i.e you want a surface value, it must be either \"reference_state\" or \"surface_conditions\"")
         end
@@ -86,8 +87,6 @@ function process_case(
     T  = map(x->x["T"], data)
     Tg = map(x->x["Tg"], data)
     q  = map(x->x["q"], data)
-
-
     qg = map((Tg,pg)->calc_qg(Tg,pg;thermo_params), Tg, pg)
 
 
