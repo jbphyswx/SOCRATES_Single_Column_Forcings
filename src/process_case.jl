@@ -59,17 +59,17 @@ function process_case(
     # We use map here on individual variables mostly as many of them are no longer constituent variables of data so we must construct fcns with them separately
 
     ## For surface values, adjust to the time period of interest and return only the surface values, these are called in TC.jl
-    if ~isnothing(surface) #(is always ERA5)
-        initial_ind = get_initial_ind(data[:ERA5_data], flight_number) # should the reference be the first timestep? or what is the reference meant to be...
+    if ~isnothing(surface) #(is always ERA5) -- maybe not, doesn't seem so in ATLAS LES outputs
+        initial_ind = get_initial_ind(data[forcing], flight_number) # should the reference be the first timestep? or what is the reference meant to be...
         if surface ∈ ["reference_state", "reference","ref"]  # we just want the surface reference state and we'll just return that
-            Tg = data[:ERA5_data]["Tg"][:][initial_ind] # might have to drop lon,lat dims or sum
-            pg = data[:ERA5_data]["Ps"][:][initial_ind]
+            Tg = data[forcing]["Tg"][:][initial_ind] # might have to drop lon,lat dims or sum
+            pg = data[forcing]["Ps"][:][initial_ind]
             qg = calc_qg(Tg, pg; thermo_params)
             qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
             return TD.PhaseEquil_pTq(thermo_params, pg , Tg , qg )
         elseif surface ∈ ["surface_conditions", "conditions","cond"]
-            Tg = vec(data[:ERA5_data]["Tg"])[:][initial_ind:end] # might have to drop lon,lat dims or sum
-            pg = vec(data[:ERA5_data]["Ps"])[:][initial_ind:end]
+            Tg = vec(data[forcing]["Tg"])[:][initial_ind:end] # might have to drop lon,lat dims or sum
+            pg = vec(data[forcing]["Ps"])[:][initial_ind:end]
             qg = calc_qg(Tg, pg; thermo_params)
             tg = data[forcing]["tsec"][initial_ind:end] # get the time array
             tg = tg .- tg[1] # i think we need this to get the initial time to be 0, so the interpolation works
