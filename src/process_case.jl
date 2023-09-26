@@ -119,10 +119,8 @@ function process_case(
     dpdt_g = add_dim(dpdt_g, z_dim_num) # should be lon lat lev time (hopefully order was already correct)
     ω  = combine_air_and_ground_data(ω, dpdt_g, z_dim_num; insert_location=ground_indices[:ERA5_data])
 
-    p_grid = add_dim(align_along_dimension(p[:ERA5_data], z_dim_num),time_dim_num) # align on dimension 3 lev, add time dimensino 4
-    # p_full = combine_air_and_ground_data(p_grid, add_dim(pg[:ERA5_data],z_dim_num) ,z_dim_num) # align p along lev, add lev_dim to pg, stack (hope braodcasting works to fill it out...)
-
-    p_full = combine_air_and_ground_data(p_grid, pg[:ERA5_data][:] ,z_dim_num; insert_location=ground_indices[:ERA5_data]) # align p along lev, add lev_dim to pg, stack (hope braodcasting works to fill it out...)
+    p_grid = add_dim(align_along_dimension(p[forcing], z_dim_num),time_dim_num) # align on dimension 3 lev, add time dimensino 4
+    p_full = combine_air_and_ground_data(p_grid, pg[forcing][:] ,z_dim_num; insert_location=ground_indices[:ERA5_data]) # align p along lev, add lev_dim to pg, stack (hope braodcasting works to fill it out...)
 
     # this i think was wrong -- maybe get atlas to confirm what version of the sigmoid she used.
     # c    = 100
