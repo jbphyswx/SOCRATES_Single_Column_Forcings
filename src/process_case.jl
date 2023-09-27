@@ -228,11 +228,11 @@ function process_case(
     dqtdt_hadv = combine_air_and_ground_data(dqtdt_hadv,FT(0),z_dim_num; insert_location=ground_indices[forcing])
     # expand everything to new z grid and make t operation (initial condition or time splines)
     # dTdt_hadv  = get_data_new_z_t(dTdt_hadv , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
-    dTdt_hadv  = get_data_new_z_t(dTdt_hadv  .* (forcing==forcing) , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)  # testing not using forcing for obs to see if fixes anything
-    H_nudge    = get_data_new_z_t(H_nudge   , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing]   , data=data[forcing]   , thermo_params,  initial_condition)
+    dTdt_hadv  = get_data_new_z_t(dTdt_hadv  .* (forcing==:ERA5_data) , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)  # testing not using forcing for obs to see if fixes anything
+    H_nudge    = get_data_new_z_t(H_nudge   , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
     # dqtdt_hadv = get_data_new_z_t(dqtdt_hadv, new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
-    dqtdt_hadv = get_data_new_z_t(dqtdt_hadv .* (forcing==forcing) , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition) # testing not using forcing for obs to see if fixes anything
-    qt_nudge   = get_data_new_z_t(qt_nudge  , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing]   , data=data[forcing]   , thermo_params,  initial_condition)
+    dqtdt_hadv = get_data_new_z_t(dqtdt_hadv .* (forcing==:ERA5_data) , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition) # testing not using forcing for obs to see if fixes anything
+    qt_nudge   = get_data_new_z_t(qt_nudge  , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
     subsidence = get_data_new_z_t(subsidence, new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
     u_nudge    = get_data_new_z_t(u_nudge   , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
     v_nudge    = get_data_new_z_t(v_nudge   , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
