@@ -73,7 +73,7 @@ function process_case(
             qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
             return TD.PhaseEquil_pTq(thermo_params, pg , Tg , qg )
         elseif surface ∈ ["surface_conditions", "conditions","cond"]
-            # Tg = vec(data[forcing]["Tg"])[:][initial_ind:end] # might have to drop lon,lat dims or sum
+            Tg = vec(data[forcing]["Tg"])[:][initial_ind:end] # might have to drop lon,lat dims or sum
             pg = vec(data[forcing]["Ps"])[:][initial_ind:end]
             # qg = calc_qg(Tg, pg; thermo_params)
 
