@@ -91,8 +91,23 @@ function process_case(
 
 
     # Set up thermodynamic states for easier use (for both forcing and ERA -- note ERA subsidence for example depends on density which relies on T,p,q so need both even if forcing is :obs_data)
-    ts      = map((p,T,q)->TD.PhaseEquil_pTq.(thermo_params, p , T , q ), p,T,q)
+    # ts      = map((p,T,q)->TD.PhaseEquil_pTq.(thermo_params, p , T , q ), p,T,q)
     tsg     = map((pg,Tg,qg)->TD.PhaseEquil_pTq.(thermo_params, pg , Tg , qg ), pg,Tg,qg)
+
+    #=
+     I believe we can get from T_L to something better
+    In principle at initiation they assume domination by liquid, so T_l,i ≈ T_l
+    We are given in the forcing files T_L = T - L q_c/ c_p, 
+    Then, θ_L,I ≈ θ_L = θ - θ\T L q_c/ c_p = (θ/T) ( T - L q_c/ c_p) = (θ/T) T_L
+    thus θ_L = T_L (p_0/p)^k, where k = R_d/c_p
+    In principle this is the same as just calculating the dry potential temperature subsitututing T_L for t (not sure if to include q in the calculation of θ or no, in priciple it's needed for R\c_p so I'll do it as a phase partition of all vapor right now)
+    I think for the surface we're fine because they gave us real temperature...
+    This I hope solves the issue where our qt is right but q_l and T are wrong
+    =#
+    θ  = map((T,p,q)->TD.dry_pottemp_given_pressure.(thermo_params,T,p,TD.PhasePartition.(q)), T,p,q)
+    ts = map((p,θ,q)->TD.PhaseEquil_pθq.(thermo_params, p , θ, q ), p,θ,q)
+    # tsg     = map((pg,Tg,qg)->TD.PhaseEquil_pθq.(thermo_params, pg , Tg , qg ), pg,Tg,qg)
+
 
     # get indices where the ground would get inserted in... (and convert to same shape/dims.)
     ground_indices = map( (ts) -> get_ground_insertion_indices(ts, tsg[forcing], z_dim_num; thermo_params, data=data), ts) # always use ERA5 surface...
