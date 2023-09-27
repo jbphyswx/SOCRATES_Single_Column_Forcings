@@ -100,6 +100,12 @@ function process_case(
     q  = map(x->x["q"], data)
     # qg = map((Tg,pg)->calc_qg(Tg,pg;thermo_params), Tg, pg)
 
+    #For not surface though, we need to add in the ΔT from the summary table in the Atlas paper (to tsg above?)
+    summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
+    SOCRATES_summary = NC.Dataset(summary_file,"r")
+    flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
+    Tg = map(Tg->Tg .+ SOCRATES_summary[:deltaT][flight_ind], Tg)
+
     base_calc_qg = (pg,p,q)->calc_qg([pg],p,q[:])[1] # pg->[pg] for pyinterp and [1] for just the value out
     qg = map((pg,p,q)->base_calc_qg.(pg, Ref(p[:]) , align_along_dimension(vec.(collect(eachslice(q[:]; dims=time_dim_num))), z_dim_num) ), pg, p,  q) # iterate over forcings, the pg value, the p value is a fixed array, for the q value we take our slices in z and align them along the time dimension to match the shape of pg for calc_qg broadcasting, 
 
