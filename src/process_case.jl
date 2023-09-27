@@ -64,13 +64,24 @@ function process_case(
         if surface ∈ ["reference_state", "reference","ref"]  # we just want the surface reference state and we'll just return that
             Tg = data[forcing]["Tg"][:][initial_ind] # might have to drop lon,lat dims or sum
             pg = data[forcing]["Ps"][:][initial_ind]
-            qg = calc_qg(Tg, pg; thermo_params)
+            # qg = calc_qg(Tg, pg; thermo_params)
+
+            p = vec(data[forcing]["lev"])[:]
+            q = vec(selectdim(data[forcing]["q"], time_dim_num, initial_ind))[:] # select our q value subset along the time dimension
+
+            qg = calc_qg([pg],p,q)
             qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
             return TD.PhaseEquil_pTq(thermo_params, pg , Tg , qg )
         elseif surface ∈ ["surface_conditions", "conditions","cond"]
-            Tg = vec(data[forcing]["Tg"])[:][initial_ind:end] # might have to drop lon,lat dims or sum
+            # Tg = vec(data[forcing]["Tg"])[:][initial_ind:end] # might have to drop lon,lat dims or sum
             pg = vec(data[forcing]["Ps"])[:][initial_ind:end]
-            qg = calc_qg(Tg, pg; thermo_params)
+            # qg = calc_qg(Tg, pg; thermo_params)
+
+            p = vec(data[forcing]["lev"])[:]
+            q = selectdim(data[forcing]["q"], time_dim_num, initial_ind:size(data[forcing]["q"], time_dim_num)) # select our q value subset along the time dimension
+            q = vec.(collect(eachslice(q, dims=time_dim_num))) # turn our q from [lon, lat, lev, time] to a list of vectors along [lon,lat,lev] to match p
+            qg = map((pg,q)->calc_qg([pg],p,q)[1], pg, q) # map the function to get out qg for each time step
+
             tg = data[forcing]["tsec"][initial_ind:end] # get the time array
             tg = tg .- tg[1] # i think we need this to get the initial time to be 0, so the interpolation works
             # in this interpolation, tsec has to be adjusted to our offsets no? or we clip e.g. pg to be pg[initial_ind:end], tsec would also need to be adjusted no?, subtract the value at initial_ind i guess...
@@ -87,7 +98,8 @@ function process_case(
     T  = map(x->x["T"], data)
     Tg = map(x->x["Tg"], data)
     q  = map(x->x["q"], data)
-    qg = map((Tg,pg)->calc_qg(Tg,pg;thermo_params), Tg, pg)
+    # qg = map((Tg,pg)->calc_qg(Tg,pg;thermo_params), Tg, pg)
+    qg = map((pg,p,q)->calc_qg(pg,p,q), pg, p, q)
 
 
     # Set up thermodynamic states for easier use (for both forcing and ERA -- note ERA subsidence for example depends on density which relies on T,p,q so need both even if forcing is :obs_data)

@@ -576,11 +576,19 @@ end
 """
 Currently this is setup to just assume saturation w/ Tg 
 However, this doesn't match Atlas's simulations so maybe we'll adjust this to just be an adiabatic adjustment to the lowest datapoint we do have?
+It seems that Atlas's simulations have a slight kink at the lowest level, but otherwise are ≈ constant down to the surface if that's outside the forcing range and just interpolated if it's inside the forcing range...
+    - in that case, we should be able to just use pyinterp because Spline1D default bc is nearest outside the range
 """
-function calc_qg(Tg,pg; thermo_params)
-    pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
-    molmass_ratio = TDP.molmass_ratio(thermo_params)
-    qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
+# function calc_qg(Tg,pg; thermo_params)
+function calc_qg(pg,p,q)
+    # pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
+    # molmass_ratio = TDP.molmass_ratio(thermo_params)
+    # qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
+
+    # not sure if this should be linear in p or logarithmic (linear in z), gonna do linear in p
+    qg = pyinterp(pg, p, q)
+    # qg = pyinterp(log.(pg), log.(p), q)
+
     return qg
 end
 
