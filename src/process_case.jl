@@ -99,7 +99,9 @@ function process_case(
     Tg = map(x->x["Tg"], data)
     q  = map(x->x["q"], data)
     # qg = map((Tg,pg)->calc_qg(Tg,pg;thermo_params), Tg, pg)
-    qg = map((pg,p,q)->calc_qg(pg,p,q), pg, p, q)
+
+    base_calc_qg = (pg,p,q)->calc_qg([pg],p,q[:])[1] # pg->[pg] for pyinterp and [1] for just the value out
+    qg = map((pg,p,q)->base_calc_qg.(pg, Ref(p[:]) , align_along_dimension(vec.(collect(eachslice(q[:]; dims=time_dim_num))), z_dim_num) ), pg, p,  q) # iterate over forcings, the pg value, the p value is a fixed array, for the q value we take our slices in z and align them along the time dimension to match the shape of pg for calc_qg broadcasting, 
 
 
     # Set up thermodynamic states for easier use (for both forcing and ERA -- note ERA subsidence for example depends on density which relies on T,p,q so need both even if forcing is :obs_data)
