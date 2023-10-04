@@ -611,3 +611,8 @@ function get_initial_ind(data, flight_number::Int; t_old = nothing)
     initial_ind = argmin(abs.((t.-initial_time))) # find the index of the initial time
     return initial_ind
 end
+
+# squeeze = (x) -> dropdims(x, dims = (findall(size(x) .== 1)...,))
+function squeeze(x)
+    return dropdims(x, dims = (findall(size(x) .== 1)...,))
+end
