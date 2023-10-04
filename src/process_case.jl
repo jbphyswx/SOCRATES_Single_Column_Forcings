@@ -185,7 +185,7 @@ function process_case(
 
     # @show(minimum(subsidence), maximum(subsidence))
     # subsidence = max.(subsidence,0)  # stability test (unstable) (all ascent)
-    subsidence = min.(subsidence,0)  # stability test (stable!) ( all subsidence )
+    # subsidence = min.(subsidence,0)  # stability test (stable!) ( all subsidence ) # testing getting rid of this to see if the stability problem had been fixed elsewhere
     # m = .007 # almost stable .005 | unstable .007
     # subsidence[subsidence .> m] .= m # stability test -- can we tolerate any ascent?
 
