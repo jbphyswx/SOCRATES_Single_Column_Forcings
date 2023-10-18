@@ -174,14 +174,19 @@ function process_case(
     (p1,y1) = (p1 , 1) # use our ground pressure (can't use pfull cause would need to pull)
     (p2,y2) = (p0                , 0)
     k = @. log((L/2 + 1)/(L/2 - 1)) / (p1-p0) # ps is an array so we have an array of ks
+    f_p = @. cos( π/2 * (p1 - p_full[forcing]) / (p1 - p0)) * (p_full[forcing] >= p0) # atlas email
     # @show(squeeze(k),size(k))
     # @show(size(p_full))
-    f_p = @. a + L  / (1 + exp(-k*(p_full[forcing]-p0)))
+    f_p_alt = @. (a + L  / (1 + exp(-k*(p_full[forcing]-p0)))) * (p_full[forcing] >= p0) # my original
+
+    # @info(squeeze(Statistics.mean(p_full[forcing], dims = time_dim_num)))
+    # @info(squeeze(Statistics.mean(f_p, dims = time_dim_num)))
 
 
     grav = TDP.grav(thermo_params)
     # @show(size(f_p), size(ω), size(ρ))
-    subsidence =  -(ω .- dpdt_g.*f_p)  ./ (ρ .* grav)
+    subsidence =  -(ω .- (dpdt_g.*f_p))  ./ (ρ .* grav)
+
 
     # @show(minimum(subsidence), maximum(subsidence))
     # subsidence = max.(subsidence,0)  # stability test (unstable) (all ascent)
