@@ -20,23 +20,20 @@ const TDPS = TD.Parameters.ThermodynamicsParameters
 pairs = NamedTuple()
 
 # toml_dict_default::CP.AbstractTOMLDict
-FT  = Float64
+FT = Float64
 FTD = Float64
 
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias");
-aliases = string.(fieldnames(TDP.ThermodynamicsParameters));
-param_pairs = CP.get_parameter_values!(toml_dict, aliases, "Thermodynamics");
-thermo_params = TDP.ThermodynamicsParameters{FT}(; param_pairs...);
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+aliases = string.(fieldnames(TDP.ThermodynamicsParameters))
+param_pairs = CP.get_parameter_values!(toml_dict, aliases, "Thermodynamics")
+thermo_params = TDP.ThermodynamicsParameters{FT}(; param_pairs...)
 TP = typeof(thermo_params)
 
 
 aliases = string.(fieldnames(CM.Parameters.CloudMicrophysicsParameters))
 aliases = setdiff(aliases, ["thermo_params"])
 pairs = CP.get_parameter_values!(toml_dict, aliases, "CloudMicrophysics")
-microphys_params = CM.Parameters.CloudMicrophysicsParameters{FTD, TP}(;
-    pairs...,
-    thermo_params,
-)
+microphys_params = CM.Parameters.CloudMicrophysicsParameters{FTD, TP}(; pairs..., thermo_params)
 MP = typeof(microphys_params)
 
 
@@ -57,7 +54,7 @@ Base.@kwdef struct TurbulenceConvectionParameters{MP} <: ATCP
     # user_args::NamedTuple # not sure if this is completely necessary yet
 end
 
-thermodynamics_params(ps::Union{ATCP,}) = CM.Parameters.thermodynamics_params(ps.microphys_params)
+thermodynamics_params(ps::Union{ATCP}) = CM.Parameters.thermodynamics_params(ps.microphys_params)
 # surface_fluxes_params(ps::ATCP) = ps.surf_flux_params
 # microphysics_params(ps::ATCP) = ps.microphys_params
 
@@ -82,12 +79,12 @@ for var in fieldnames(TDPS)
 end
 
 # derived parameters
-molmass_ratio(ps::Union{ATCP,}) = TD.Parameters.molmass_ratio(thermodynamics_params(ps))
-R_d(ps::Union{ATCP,}) = TD.Parameters.R_d(thermodynamics_params(ps))
-R_v(ps::Union{ATCP,}) = TD.Parameters.R_v(thermodynamics_params(ps))
-cp_d(ps::Union{ATCP,}) = TD.Parameters.cp_d(thermodynamics_params(ps))
-cv_v(ps::Union{ATCP,}) = TD.Parameters.cv_v(thermodynamics_params(ps))
-cv_l(ps::Union{ATCP,}) = TD.Parameters.cv_l(thermodynamics_params(ps))
+molmass_ratio(ps::Union{ATCP}) = TD.Parameters.molmass_ratio(thermodynamics_params(ps))
+R_d(ps::Union{ATCP}) = TD.Parameters.R_d(thermodynamics_params(ps))
+R_v(ps::Union{ATCP}) = TD.Parameters.R_v(thermodynamics_params(ps))
+cp_d(ps::Union{ATCP}) = TD.Parameters.cp_d(thermodynamics_params(ps))
+cv_v(ps::Union{ATCP}) = TD.Parameters.cv_v(thermodynamics_params(ps))
+cv_l(ps::Union{ATCP}) = TD.Parameters.cv_l(thermodynamics_params(ps))
 
 # ##### Forwarding SurfaceFluxes.jl
 
@@ -97,7 +94,7 @@ cv_l(ps::Union{ATCP,}) = TD.Parameters.cv_l(thermodynamics_params(ps))
 
 ρ_cloud_liq(ps::ATCP) = CM.Parameters.ρ_cloud_liq(microphysics_params(ps))
 
-param_set = TurbulenceConvectionParameters{MP }(;microphys_params)
+param_set = TurbulenceConvectionParameters{MP}(; microphys_params)
 
 
 end
