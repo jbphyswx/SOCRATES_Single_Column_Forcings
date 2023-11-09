@@ -38,3 +38,6 @@ test/Manifest.toml
 
 # Ignore any local depot stored here.
 .julia*/
+
+# Ignore pycache
+__pycache__
