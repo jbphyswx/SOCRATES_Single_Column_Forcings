@@ -16,21 +16,27 @@ dirs = (
 cd(root) do
     for dir in dirs
         reldir = relpath(dir, root)
-        @info "Updating environment `$reldir`"
-        cmd = if dir == root
-            `$(Base.julia_cmd()) --project -e """import Pkg; Pkg.update()"""`
-        elseif dir == joinpath(root, ".dev")
-            `$(Base.julia_cmd()) --project=$reldir -e """import Pkg; Pkg.update()"""`
+        if isdir(dir)
+            @info "Updating environment `$reldir`"
+            cmd = if dir == root
+                `$(Base.julia_cmd()) --project -e """import Pkg; Pkg.update()"""`
+            elseif dir == joinpath(root, ".dev")
+                `$(Base.julia_cmd()) --project=$reldir -e """import Pkg; Pkg.update()"""`
+            else
+                `$(Base.julia_cmd()) --project=$reldir -e """import Pkg; Pkg.develop(;path=\".\"); Pkg.update()"""`
+            end
+            run(cmd)
         else
-            `$(Base.julia_cmd()) --project=$reldir -e """import Pkg; Pkg.develop(;path=\".\"); Pkg.update()"""`
+            @warn "Skipping non-existent environment `$reldir`"
         end
-        run(cmd)
     end
 end
 
 # https://github.com/JuliaLang/Pkg.jl/issues/3014
 for dir in dirs
-    cd(dir) do
-        rm("LocalPreferences.toml"; force = true)
+    if isdir(dir)
+        cd(dir) do
+            rm("LocalPreferences.toml"; force = true)
+        end
     end
 end
