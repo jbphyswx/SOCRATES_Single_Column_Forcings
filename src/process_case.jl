@@ -68,6 +68,7 @@ function process_case(
 
             p = vec(data[forcing]["lev"])[:]
             q = vec(selectdim(data[forcing]["q"], time_dim_num, initial_ind))[:] # select our q value subset along the time dimension
+            q = q ./ (1 .+ q) # mixing ratio to specific humidity
 
             qg = calc_qg([pg], p, q)
             qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
@@ -80,6 +81,7 @@ function process_case(
             p = vec(data[forcing]["lev"])[:]
             q = selectdim(data[forcing]["q"], time_dim_num, initial_ind:size(data[forcing]["q"], time_dim_num)) # select our q value subset along the time dimension
             q = vec.(collect(eachslice(q, dims = time_dim_num))) # turn our q from [lon, lat, lev, time] to a list of vectors along [lon,lat,lev] to match p
+            map(mr -> mr ./ (1.0 .+ mr), q) # mixing ratio to specific humidity for each vector we created in q
             qg = map((pg, q) -> calc_qg([pg], p, q)[1], pg, q) # map the function to get out qg for each time step
 
             tg = data[forcing]["tsec"][initial_ind:end] # get the time array
@@ -104,6 +106,7 @@ function process_case(
     T = map(x -> x["T"], data)
     Tg = map(x -> x["Tg"], data)
     q = map(x -> x["q"], data)
+    q = map(mr -> mr ./ (1 .+ mr), q) # mixing ratio to specific humidity for each forcing
     # qg = map((Tg,pg)->calc_qg(Tg,pg;thermo_params), Tg, pg)
 
     #For not surface though, we need to add in the ΔT from the summary table in the Atlas paper (to tsg above?)
@@ -118,7 +121,7 @@ function process_case(
             base_calc_qg.(
                 pg,
                 Ref(p[:]),
-                align_along_dimension(vec.(collect(eachslice(q[:]; dims = time_dim_num))), z_dim_num),
+                align_along_dimension(vec.(collect(eachslice(q; dims = time_dim_num))), z_dim_num),
             ),
         pg,
         p,

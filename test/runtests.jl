@@ -20,6 +20,14 @@ import Thermodynamics.Parameters as TDP
     # T_new_z_init  = SSCF.get_data_new_z_t("T", new_z,"lev","time"; data, thermo_params,  initial_condition=true)
 
     data = SSCF.process_case(9; thermo_params = thermo_params)
+    @show(data)
 
+    data = SSCF.process_case(9; thermo_params = thermo_params, initial_condition = true)
+    @show(data)
+
+    data = SSCF.process_case(9; thermo_params = thermo_params, surface = "reference_state")
+    @show(data)
+
+    data = SSCF.process_case(9; thermo_params = thermo_params, surface = "surface_conditions")
     @show(data)
 end
