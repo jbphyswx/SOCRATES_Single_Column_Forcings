@@ -1,0 +1,20 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: SOCRATESSingleColumnStructureFunctions.jl
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Jordan
+    name-particle: Jordan
+    family-names: Benjamin
+    email: jbenjami@caltech.edu
+    affiliation: California Institute of Technology
+    orcid: 'https://orcid.org/0009-0004-5326-2300'
+abstract: >-
+  Construct forcing data from Atlas et al (2020),
+  https://doi.org/10.1029/2020MS002205, for use with
+  TurbulenceConvection.jl
