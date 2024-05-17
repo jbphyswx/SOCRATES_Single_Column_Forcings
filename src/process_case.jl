@@ -164,9 +164,16 @@ function process_case(
         ground_indices,
     ) # is it era5? their output les plots sure don't look it...
 
+    # SHOULD THESE NOT USE THE GROUND_INDICES INSERT LOCATIONS???? and/or ts_full
+
     # old_z  => Precompute old z coordinate (precompute to save us some trouble later (get_data_new_z_t func can self-calculate it but it's redundant to keep calculating z)
     # z_old = map((ts,tsg,data)->lev_to_z( ts,tsg; thermo_params, data=data) , ts,tsg, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
-    z_old = map((ts, data) -> lev_to_z(ts, tsg[forcing]; thermo_params, data = data), ts, data) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?)
+    # z_old = map((ts, data) -> lev_to_z(ts, tsg[forcing]; thermo_params, data = data), ts, data) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) 
+
+
+    z_old = map((ts, data, ground_indices) -> lev_to_z_from_LES_output(ts, tsg[forcing]; thermo_params, data = data, flight_number = flight_number, forcing_type=forcing, ground_indices=ground_indices), ts, data, ground_indices) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) [ + Testing getting z from the forcing data ]
+
+
     # @show(z_old)
 
 

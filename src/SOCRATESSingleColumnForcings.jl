@@ -17,8 +17,9 @@ const forcing_types = [:obs_data, :ERA5_data] # maybe change these to [:obs,:ERA
 # The other four cases have clouds extending through deeper boundary layers; they are run on a 320-level vertical grid.
 const grid_heights = Dict(1 => 320, 9 => 320, 10 => 320, 11 => 320, 12 => 192, 13 => 192)
 
-# include(joinpath("..", "Data", "Atlas_LES_Profiles", "download_atlas_les_profiles.jl")) # not in src so don't include automatically
+include(joinpath("..", "Data", "Atlas_LES_Profiles", "download_atlas_les_profiles.jl")) # not in src so don't include automatically
 include("open_atlas_les_inputs.jl")
+include("open_atlas_les_outputs.jl")
 include("helper_functions.jl")
 include("process_case.jl")
 

@@ -121,6 +121,202 @@ end
 # end
 
 
+
+
+
+
+
+
+function lev_to_z_from_LES_output_column(tsz, lesz, lesp; thermo_params, data, flight_number, forcing_type)
+    # Load pressure and z from the LES output
+
+    p_in = TD.air_pressure.(thermo_params, tsz)
+
+    # Interpolate z from the LES output to the pressure levels of the thermodynamic state
+    z_out = pyinterp(p_in, lesp, lesz)
+
+end
+
+"""
+We're trying to use the LES output p, z to get the input p's z's since using the thickness equation may have meant we're off a little
+However, interpolating back to the input data's scale could be bad and lose the resolution gains we have... we'll have to see how it goes...
+We only have the forcing data at that scale so...
+ 
+"""
+function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic = false, flight_number, forcing_type, ground_indices = nothing)
+
+    dimnames = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
+    lev_dim_num = findfirst(x -> x == "lev", dimnames)
+    ldn = lev_dim_num
+    L = size(ts, lev_dim_num)
+
+    time_dim_num = findfirst(x -> x == "time", dimnames)
+    tdn = time_dim_num
+    Lt = size(ts, time_dim_num)
+
+    if !assume_monotonic
+        LES_data = open_atlas_les_output(flight_number)[forcing_type]
+        p_LES = LES_data["PRES"] # 2D,time varying
+        z_LES = LES_data["z"] # 1D, constant
+        # LES_min_z, LES_max_z = extrema(z_LES)
+
+        dimnames_LES = NC.dimnames(p_LES) # use this as default cause calculating ts doesn't maintain dim labellings (should be time, z)
+        # ldn_LES =  findfirst(x -> x == "z", dimnames_LES)
+        tdn_LES =  findfirst(x -> x == "time", dimnames_LES)
+
+        # handle times...
+
+        # overall
+        summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
+        SOCRATES_summary = NC.Dataset(summary_file,"r")
+        flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
+        initial_time = SOCRATES_summary["reference_time"][flight_ind] - Dates.Hour(12) # simulation start time is 12 hours before reference time, but set up socrates summary to give them all the same reference... (is in jupyter notebook somewhere)
+
+        # input ( i think this uses same calendar as overall? idk...)
+        t_in = data["tsec"] # should just be seconds past initial_time
+        t_base = Dates.DateTime(string(data["bdate"][:]), Dates.DateFormat("yymmdd")) + Dates.Year(2000) # the base Date (using bdate not nbdate cause nbdate seems to have  bug in flight 9 (extra 0 in month spot))
+        t_in = t_base .+ Dates.Second.(t_in) # the actual dates
+
+        t_in = (t_in .- initial_time) ./ Dates.Millisecond(1) # make it relative to the start of the simulation
+        t_in ./= 1000 # Milliseconds to seconds
+        # @info("t_in", t_in)
+
+        # LES (this has no calendar, is just t in seconds, i *think* it's on the same t as 
+        t_les = LES_data["time"] # should just be seconds past initial_time
+        t_les = (t_les .- t_les[1]) * (24 * 3600 * 1000) # make it relative to the start of the simulation, and convert days to miliseconds (then round, bc Dates can't handle non integer amounts)
+        t_les ./= 1000 # Milliseconds to seconds
+        t_les = t_les[:]
+
+
+        p_LES = p_LES[:] .* 100 # convert to hPa to Pa
+
+        # interpolate les data to input times (instead of just choosing the `closest` hour like we did before... (need to apply by row)
+        # p_LES = pyinterp(t_in, t_les, p_LES) # i think you need to map this bc of the splines... but there's probably some way...
+        p_LES = mapslices(x-> pyinterp(t_in, t_les, x), p_LES; dims = 2) # apply to each row
+
+        # for ts, tsz, interpolation is more annoying, maybe need to do in p,T,q separately and reconstitute?
+
+        # tsz = combine_air_and_ground_data(ts, tsg, ldn; data, reshape_ground = true, insert_location = :end) # here we just want to assume monotonic so we can pass those to this fcn (no need to merge bc our column fcn isn't handling...)
+        tsz = ts
+        
+        # preallocate z
+        # z = zeros(Float64, size(tsz)...) # should be same size as ts
+        s_tsz = collect(size(ts))
+        s_tsz[ldn] += 1 # we just want to add a single slice of zeros for the ground -- these are all ocean cases so this should be fine for now...
+        z = Array{Float64}(undef, s_tsz...) # should be same size as ts
+
+        # iterate over columns in z (ldn)
+
+        # One problem is the LES doesn't span the full range of the input... so should we do the LES for the LES range and then use the thickness equation outside that?
+        increasing_p = false
+        for i_t in 1:Lt
+            
+
+            # LES does not span the full range of the input, so we need to do the LES for the LES range and then use the thickness equation outside that
+            # Get min/max inds for input data that are covered by LES data
+
+            tsz_t = selectdim(tsz, tdn, i_t)[:]
+            tsgz = tsg[i_t]
+            p_in_t = TD.air_pressure.(thermo_params, tsz_t)
+            p_in_min, p_in_max = extrema(p_in_t)
+
+            p_LES_t = selectdim(p_LES, tdn_LES, i_t)[:]
+            p_LES_min, p_LES_max = extrema(p_LES_t)
+
+            p_s_in = TD.air_pressure(thermo_params, tsgz)
+
+            if isnothing(ground_indices)
+                index = searchsortedfirst(tsz_t, tsgz; by = x -> TD.air_pressure(thermo_params, x), rev = false) # find where the ground value would be inserted...
+            else
+                index = selectdim(ground_indices, tdn, i_t)[:][] # should just be one item
+                # @info("index is", index)
+            end
+
+
+            # @info("size tsz_t", size(tsz_t))
+
+
+            # sort them all same direction (LES to match input, and we're going with increasing_p for simplifying logic below (decreasing z))
+            increasing_p = p_in_t[1] < p_in_t[end] # if the first pressure is lower than the last, we're increasing
+            if increasing_p
+                p_LES_t = sort(p_LES_t)
+                z_LES   = sort(z_LES, rev = true)
+            else
+                p_in_t = reverse(p_in_t)
+                tsz_t  = reverse(tsz_t)
+                p_LES_t = sort(p_LES_t)
+                z_LES   = sort(z_LES, rev = true)
+                index = length(p_in_t) - index + 1 # reverse the index
+            end
+
+            insert!(tsz_t, index, tsgz) # only seems to be an in place option...
+            insert!(p_in_t, index, p_s_in) # only seems to be an in place option...
+            # @info("index", index, p_in_max, p_s_in, flight_number, forcing_type)
+
+
+            # (we're going increasing p direction) 
+            i_t_min_p = findfirst(x -> x > p_LES_min, p_in_t) # first ind with pressure higher than the lowest pressure in the LES data (going increasing_p direction)
+            i_t_max_p = findlast(x -> x < p_LES_max, p_in_t)  #  last ind with pressure lower than the highest pressure in the LES data (going increasing_p direction)
+
+
+            # @info("p_in_t, p_LES_t, z_LES", p_in_t, p_LES_t, z_LES)
+            # @info("p_LES_min, p_LES_max", p_LES_min, p_LES_max)
+            # @info("p_in_min, p_in_max", p_in_min, p_in_max)
+            # @info( i_t_min, i_t_max)
+
+
+            squeeze(a) = dropdims(a, dims = tuple(findall(size(a) .== 1)...))
+            
+            # handle data covered by LES
+            selectdim(z, tdn, i_t)[i_t_min_p:i_t_max_p] =  lev_to_z_from_LES_output_column( tsz_t[i_t_min_p:i_t_max_p], z_LES[:], p_LES_t ; thermo_params, data, flight_number, forcing_type)
+
+            # if i_t == 16
+            #     # @info("z", squeeze(z) )
+            #     show(stdout, "text/plain", squeeze(z)[:, 14:17]); println(" ")
+            # end
+
+            # Handle z's lower than LES Data (highest pressure to sfc) | use the thickness equation
+            new_z = lev_to_z_column( tsz_t[i_t_max_p:end] ; thermo_params, data)
+            # @info("new_z", new_z)
+            new_dz = new_z[2:end] .- new_z[1:end-1] # get the dz from the thickness equation, but instead of going up from the ground, we're gonna flip it to go down from the last good z
+            new_dz = cumsum(new_dz) # sum up our dz
+            # @info("new_dz", new_dz)
+            new_z = selectdim(z, tdn, i_t)[i_t_max_p] .+ new_dz
+            # @info("new_z", new_z)
+            selectdim(z, tdn, i_t)[i_t_max_p+1:end] = new_z
+
+            # selectdim(z, tdn, i_t)[i_t_max_p+1:end] = lev_to_z_column( tsz_t[i_t_max_p:end] ; thermo_params, data)[2:end] # go from existing point to end but drop the 0 off on the bottom...
+
+            # if i_t == 16
+            #     # @info("z", squeeze(z) )
+            #     show(stdout, "text/plain", squeeze(z)[:, 14:17]); println(" ")
+            # end
+
+            # Handle z's higher than LES Data | use the thickness equation and add to the top of the LES data
+            selectdim(z, tdn, i_t)[1:i_t_min_p-1] = lev_to_z_column( tsz_t[1:i_t_min_p] ; thermo_params, data)[1:end-1] .+ z[i_t_min_p] # go from start to top and add to existing top...
+
+            # if i_t == 16
+            #     # @info("z", squeeze(z) )
+            #     show(stdout, "text/plain", squeeze(z)[:, 14:17]); println(" ")
+            # end
+
+            selectdim(z, tdn, i_t)[:]  .-= selectdim(z, tdn, i_t)[index] # subtract out the ground value
+            # @info(z[index])
+        end
+        # z = mapslices((x,y) -> lev_to_z_from_LES_output_column(x, z_LES, y; thermo_params, data, flight_number, forcing_type), tsz, p_LES; dims = ldn) # need to make a stack cause that's all mapslices can take...
+
+        if !increasing_p
+            z = reverse(z, dims = ldn) # put back the way it was
+        end
+        # # @info("z", squeeze(z))
+        # show(stdout, "text/plain", squeeze(z)[:, 14:17]); println(" ")
+        return z
+    else
+        error("not implemented")
+    end
+end
+
+
 """
 Because we might not have monotonic data, we need to be able to both insert the ground data into our lev array where applicable and calculate our dz accordingly...
 I guess in principle you could throw out p < ps but then you wouldn't be able to return an even array out so either way this function would need to exist for padding and such...
@@ -207,7 +403,7 @@ function lev_to_z(ts, tsg; thermo_params, data, assume_monotonic = false)
             data = data,
             reshape_ground = true,
             insert_location = x -> TD.air_pressure(thermo_params, x),
-        ) # this doesnt work cause sometimes ps is more than the lowest value in lev...
+        ) # this doesnt work in reality cause sometimes ps is more than the lowest value in lev... so we use the not assume_monotonic version mostly
 
         #actually we need to split dz into pos or neg depending on whether or not it's above ground... maybe best just to have fcn that goes along each column...
 
@@ -575,6 +771,8 @@ function get_data_new_z_t(
     # initial_time = SOCRATES_summary["reference_time"][flight_ind] - Dates.Hour(12) # change to select by flight number...
     # initial_ind = argmin(abs.((t.-initial_time))) # find the index of the initial time
     initial_ind = get_initial_ind(data, flight_number, t_old = t_old)
+
+    ### SHOULD WE INTERPOLATE TO THE EXACT TIME RATHER THAN CLOSEST TIMES? IDK... would need to be done before creating vertical splines... 
 
     if ~isnothing(varg)
         # here we also are gonna need to check where things get inserted in case they are not in order...
