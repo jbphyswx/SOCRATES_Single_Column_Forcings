@@ -9,8 +9,8 @@ created jan 4 2023
 ##
 
 #= Simple linear interpolation function, wrapping Dierckx (copied from TC.jl)  =#
-function pyinterp(x, xp, fp)
-    spl = Dierckx.Spline1D(xp, fp; k = 1)
+function pyinterp(x, xp, fp; bc="error")
+    spl = Dierckx.Spline1D(xp, fp; k = 1, bc=bc)
     return spl(vec(x))
 end
 
@@ -190,9 +190,9 @@ function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic
 
         p_LES = p_LES[:] .* 100 # convert to hPa to Pa
 
-        # interpolate les data to input times (instead of just choosing the `closest` hour like we did before... (need to apply by row)
+        # interpolate les output data to input times (instead of just choosing the `closest` hour like we did before... (need to apply by row)
         # p_LES = pyinterp(t_in, t_les, p_LES) # i think you need to map this bc of the splines... but there's probably some way...
-        p_LES = mapslices(x-> pyinterp(t_in, t_les, x), p_LES; dims = 2) # apply to each row
+        p_LES = mapslices(x-> pyinterp(t_in, t_les, x, bc="nearest"), p_LES; dims = 2) # apply to each row, use nearest interp but outside les time bounds is bogus
 
         # for ts, tsz, interpolation is more annoying, maybe need to do in p,T,q separately and reconstitute?
 
@@ -857,7 +857,7 @@ function calc_qg(pg, p, q)
     # qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
 
     # not sure if this should be linear in p or logarithmic (linear in z), gonna do linear in p
-    qg = pyinterp(pg, p, q)
+    qg = pyinterp(pg, p, q, bc="extrapolate")
     # qg = pyinterp(log.(pg), log.(p), q)
 
     return qg
