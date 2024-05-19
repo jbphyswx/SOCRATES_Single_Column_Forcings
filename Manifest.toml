@@ -49,9 +49,9 @@ version = "0.1.3"
 
 [[deps.CLIMAParameters]]
 deps = ["DocStringExtensions", "TOML", "Test"]
-git-tree-sha1 = "cf4f5ee75576ae855eca7da064540ce40b9a04c1"
+git-tree-sha1 = "9fcb37be791b4762943cbbf15ccf35c99d91460c"
 uuid = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
-version = "0.8.6"
+version = "0.9.1"
 
 [[deps.CommonDataModel]]
 deps = ["CFTime", "DataStructures", "Dates", "Preferences", "Printf"]
@@ -444,9 +444,9 @@ version = "2.4.0"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "bf074c045d3d5ffd956fa0a461da38a44685d6b2"
+git-tree-sha1 = "9ae599cd7529cfce7fea36cf00a62cfc56f0f37c"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.9.3"
+version = "1.9.4"
 
     [deps.StaticArrays.extensions]
     StaticArraysChainRulesCoreExt = "ChainRulesCore"
@@ -487,13 +487,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.Thermodynamics]]
 deps = ["DocStringExtensions", "KernelAbstractions", "Random", "RootSolvers"]
-git-tree-sha1 = "090a50e507242bd6c85267645186260fe89a1cfe"
+git-tree-sha1 = "2de4b5ccc71baf3578959928c295a2fa13105db7"
 uuid = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
-version = "0.11.7"
-weakdeps = ["CLIMAParameters"]
-
-    [deps.Thermodynamics.extensions]
-    CreateParametersExt = "CLIMAParameters"
+version = "0.11.2"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
