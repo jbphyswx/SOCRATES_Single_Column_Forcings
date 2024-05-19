@@ -61,8 +61,11 @@ function process_case(
     ## For surface values, adjust to the time period of interest and return only the surface values, these are called in TC.jl
     if ~isnothing(surface) #(is always ERA5) -- maybe not, doesn't seem so in ATLAS LES outputs
         initial_ind = get_initial_ind(data[forcing], flight_number) # should the reference be the first timestep? or what is the reference meant to be...
+        summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
+        SOCRATES_summary = NC.Dataset(summary_file, "r")
+        Tg_offset = SOCRATES_summary[:deltaT][findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)]  # I think this is backwards in table 2 in the paper... is really T_2m - SST as in Section 3
         if surface ∈ ["reference_state", "reference", "ref"]  # we just want the surface reference state and we'll just return that
-            Tg = data[forcing]["Tg"][:][initial_ind] # might have to drop lon,lat dims or sum
+            Tg = data[forcing]["Tg"][:][initial_ind] + Tg_offset # might have to drop lon,lat dims or sum
             pg = data[forcing]["Ps"][:][initial_ind]
             # qg = calc_qg(Tg, pg; thermo_params)
 
@@ -74,7 +77,7 @@ function process_case(
             qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
             return TD.PhaseEquil_pTq(thermo_params, pg, Tg, qg)
         elseif surface ∈ ["surface_conditions", "conditions", "cond"]
-            Tg = vec(data[forcing]["Tg"])[:][initial_ind:end] # might have to drop lon,lat dims or sum
+            Tg = vec(data[forcing]["Tg"])[:][initial_ind:end] .+ Tg_offset # might have to drop lon,lat dims or sum
             pg = vec(data[forcing]["Ps"])[:][initial_ind:end]
             # qg = calc_qg(Tg, pg; thermo_params)
 
