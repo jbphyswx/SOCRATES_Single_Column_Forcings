@@ -22,6 +22,7 @@ function process_case(
     initial_condition::Bool = false,
     thermo_params,
     surface = nothing,
+    use_LES_output_for_z = true,
 )
 
     ##### ALL OUR combine_air_and_ground_data calls need to be retrofitted to actually account for where the ground is! ######
@@ -171,26 +172,25 @@ function process_case(
 
     # old_z  => Precompute old z coordinate (precompute to save us some trouble later (get_data_new_z_t func can self-calculate it but it's redundant to keep calculating z)
     # z_old = map((ts,tsg,data)->lev_to_z( ts,tsg; thermo_params, data=data) , ts,tsg, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
-    # z_old = map((ts, data) -> lev_to_z(ts, tsg[forcing]; thermo_params, data = data), ts, data) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) 
-
-
-    z_old = map(
-        (ts, data, ground_indices) -> lev_to_z_from_LES_output(
+    if !use_LES_output_for_z
+        z_old = map((ts, data) -> lev_to_z(ts, tsg[forcing]; thermo_params, data = data), ts, data) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) 
+    else
+        z_old = map(
+            (ts, data, ground_indices) -> lev_to_z_from_LES_output(
+                ts,
+                tsg[forcing];
+                thermo_params,
+                data = data,
+                flight_number = flight_number,
+                forcing_type = forcing,
+                ground_indices = ground_indices,
+            ),
             ts,
-            tsg[forcing];
-            thermo_params,
-            data = data,
-            flight_number = flight_number,
-            forcing_type = forcing,
-            ground_indices = ground_indices,
-        ),
-        ts,
-        data,
-        ground_indices,
-    ) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) [ + Testing getting z from the forcing data ]
+            data,
+            ground_indices,
+        ) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) [ + Testing getting z from the forcing data ]
+    end
 
-
-    # @show(z_old)
 
 
     # ω (subsidence) # always forced by era5
