@@ -174,7 +174,20 @@ function process_case(
     # z_old = map((ts, data) -> lev_to_z(ts, tsg[forcing]; thermo_params, data = data), ts, data) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) 
 
 
-    z_old = map((ts, data, ground_indices) -> lev_to_z_from_LES_output(ts, tsg[forcing]; thermo_params, data = data, flight_number = flight_number, forcing_type=forcing, ground_indices=ground_indices), ts, data, ground_indices) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) [ + Testing getting z from the forcing data ]
+    z_old = map(
+        (ts, data, ground_indices) -> lev_to_z_from_LES_output(
+            ts,
+            tsg[forcing];
+            thermo_params,
+            data = data,
+            flight_number = flight_number,
+            forcing_type = forcing,
+            ground_indices = ground_indices,
+        ),
+        ts,
+        data,
+        ground_indices,
+    ) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) [ + Testing getting z from the forcing data ]
 
 
     # @show(z_old)

@@ -9,8 +9,8 @@ created jan 4 2023
 ##
 
 #= Simple linear interpolation function, wrapping Dierckx (copied from TC.jl)  =#
-function pyinterp(x, xp, fp; bc="error")
-    spl = Dierckx.Spline1D(xp, fp; k = 1, bc=bc)
+function pyinterp(x, xp, fp; bc = "error")
+    spl = Dierckx.Spline1D(xp, fp; k = 1, bc = bc)
     return spl(vec(x))
 end
 
@@ -143,7 +143,16 @@ However, interpolating back to the input data's scale could be bad and lose the 
 We only have the forcing data at that scale so...
  
 """
-function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic = false, flight_number, forcing_type, ground_indices = nothing)
+function lev_to_z_from_LES_output(
+    ts,
+    tsg;
+    thermo_params,
+    data,
+    assume_monotonic = false,
+    flight_number,
+    forcing_type,
+    ground_indices = nothing,
+)
 
     dimnames = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
     lev_dim_num = findfirst(x -> x == "lev", dimnames)
@@ -162,13 +171,13 @@ function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic
 
         dimnames_LES = NC.dimnames(p_LES) # use this as default cause calculating ts doesn't maintain dim labellings (should be time, z)
         # ldn_LES =  findfirst(x -> x == "z", dimnames_LES)
-        tdn_LES =  findfirst(x -> x == "time", dimnames_LES)
+        tdn_LES = findfirst(x -> x == "time", dimnames_LES)
 
         # handle times...
 
         # overall
         summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
-        SOCRATES_summary = NC.Dataset(summary_file,"r")
+        SOCRATES_summary = NC.Dataset(summary_file, "r")
         flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
         initial_time = SOCRATES_summary["reference_time"][flight_ind] - Dates.Hour(12) # simulation start time is 12 hours before reference time, but set up socrates summary to give them all the same reference... (is in jupyter notebook somewhere)
 
@@ -192,13 +201,13 @@ function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic
 
         # interpolate les output data to input times (instead of just choosing the `closest` hour like we did before... (need to apply by row)
         # p_LES = pyinterp(t_in, t_les, p_LES) # i think you need to map this bc of the splines... but there's probably some way...
-        p_LES = mapslices(x-> pyinterp(t_in, t_les, x, bc="nearest"), p_LES; dims = 2) # apply to each row, use nearest interp but outside les time bounds is bogus
+        p_LES = mapslices(x -> pyinterp(t_in, t_les, x, bc = "nearest"), p_LES; dims = 2) # apply to each row, use nearest interp but outside les time bounds is bogus
 
         # for ts, tsz, interpolation is more annoying, maybe need to do in p,T,q separately and reconstitute?
 
         # tsz = combine_air_and_ground_data(ts, tsg, ldn; data, reshape_ground = true, insert_location = :end) # here we just want to assume monotonic so we can pass those to this fcn (no need to merge bc our column fcn isn't handling...)
         tsz = ts
-        
+
         # preallocate z
         # z = zeros(Float64, size(tsz)...) # should be same size as ts
         s_tsz = collect(size(ts))
@@ -210,7 +219,7 @@ function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic
         # One problem is the LES doesn't span the full range of the input... so should we do the LES for the LES range and then use the thickness equation outside that?
         increasing_p = false
         for i_t in 1:Lt
-            
+
 
             # LES does not span the full range of the input, so we need to do the LES for the LES range and then use the thickness equation outside that
             # Get min/max inds for input data that are covered by LES data
@@ -240,12 +249,12 @@ function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic
             increasing_p = p_in_t[1] < p_in_t[end] # if the first pressure is lower than the last, we're increasing
             if increasing_p
                 p_LES_t = sort(p_LES_t)
-                z_LES   = sort(z_LES, rev = true)
+                z_LES = sort(z_LES, rev = true)
             else
                 p_in_t = reverse(p_in_t)
-                tsz_t  = reverse(tsz_t)
+                tsz_t = reverse(tsz_t)
                 p_LES_t = sort(p_LES_t)
-                z_LES   = sort(z_LES, rev = true)
+                z_LES = sort(z_LES, rev = true)
                 index = length(p_in_t) - index + 1 # reverse the index
             end
 
@@ -266,9 +275,17 @@ function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic
 
 
             squeeze(a) = dropdims(a, dims = tuple(findall(size(a) .== 1)...))
-            
+
             # handle data covered by LES
-            selectdim(z, tdn, i_t)[i_t_min_p:i_t_max_p] =  lev_to_z_from_LES_output_column( tsz_t[i_t_min_p:i_t_max_p], z_LES[:], p_LES_t ; thermo_params, data, flight_number, forcing_type)
+            selectdim(z, tdn, i_t)[i_t_min_p:i_t_max_p] = lev_to_z_from_LES_output_column(
+                tsz_t[i_t_min_p:i_t_max_p],
+                z_LES[:],
+                p_LES_t;
+                thermo_params,
+                data,
+                flight_number,
+                forcing_type,
+            )
 
             # if i_t == 16
             #     # @info("z", squeeze(z) )
@@ -276,14 +293,14 @@ function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic
             # end
 
             # Handle z's lower than LES Data (highest pressure to sfc) | use the thickness equation
-            new_z = lev_to_z_column( tsz_t[i_t_max_p:end] ; thermo_params, data)
+            new_z = lev_to_z_column(tsz_t[i_t_max_p:end]; thermo_params, data)
             # @info("new_z", new_z)
-            new_dz = new_z[2:end] .- new_z[1:end-1] # get the dz from the thickness equation, but instead of going up from the ground, we're gonna flip it to go down from the last good z
+            new_dz = new_z[2:end] .- new_z[1:(end - 1)] # get the dz from the thickness equation, but instead of going up from the ground, we're gonna flip it to go down from the last good z
             new_dz = cumsum(new_dz) # sum up our dz
             # @info("new_dz", new_dz)
             new_z = selectdim(z, tdn, i_t)[i_t_max_p] .+ new_dz
             # @info("new_z", new_z)
-            selectdim(z, tdn, i_t)[i_t_max_p+1:end] = new_z
+            selectdim(z, tdn, i_t)[(i_t_max_p + 1):end] = new_z
 
             # selectdim(z, tdn, i_t)[i_t_max_p+1:end] = lev_to_z_column( tsz_t[i_t_max_p:end] ; thermo_params, data)[2:end] # go from existing point to end but drop the 0 off on the bottom...
 
@@ -293,14 +310,15 @@ function lev_to_z_from_LES_output(ts, tsg; thermo_params, data, assume_monotonic
             # end
 
             # Handle z's higher than LES Data | use the thickness equation and add to the top of the LES data
-            selectdim(z, tdn, i_t)[1:i_t_min_p-1] = lev_to_z_column( tsz_t[1:i_t_min_p] ; thermo_params, data)[1:end-1] .+ z[i_t_min_p] # go from start to top and add to existing top...
+            selectdim(z, tdn, i_t)[1:(i_t_min_p - 1)] =
+                lev_to_z_column(tsz_t[1:i_t_min_p]; thermo_params, data)[1:(end - 1)] .+ z[i_t_min_p] # go from start to top and add to existing top...
 
             # if i_t == 16
             #     # @info("z", squeeze(z) )
             #     show(stdout, "text/plain", squeeze(z)[:, 14:17]); println(" ")
             # end
 
-            selectdim(z, tdn, i_t)[:]  .-= selectdim(z, tdn, i_t)[index] # subtract out the ground value
+            selectdim(z, tdn, i_t)[:] .-= selectdim(z, tdn, i_t)[index] # subtract out the ground value
             # @info(z[index])
         end
         # z = mapslices((x,y) -> lev_to_z_from_LES_output_column(x, z_LES, y; thermo_params, data, flight_number, forcing_type), tsz, p_LES; dims = ldn) # need to make a stack cause that's all mapslices can take...
@@ -857,7 +875,7 @@ function calc_qg(pg, p, q)
     # qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
 
     # not sure if this should be linear in p or logarithmic (linear in z), gonna do linear in p
-    qg = pyinterp(pg, p, q, bc="extrapolate")
+    qg = pyinterp(pg, p, q, bc = "extrapolate")
     # qg = pyinterp(log.(pg), log.(p), q)
 
     return qg
