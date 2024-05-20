@@ -869,7 +869,7 @@ It seems that Atlas's simulations have a slight kink at the lowest level, but ot
     - in that case, we should be able to just use pyinterp because Spline1D default bc is nearest outside the range
 """
 # function calc_qg(Tg,pg; thermo_params)
-function calc_qg(pg, p, q)
+function calc_qg_extrapolate_pq(pg, p, q)
     # pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
     # molmass_ratio = TDP.molmass_ratio(thermo_params)
     # qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
@@ -878,6 +878,12 @@ function calc_qg(pg, p, q)
     qg = pyinterp(pg, p, q, bc = "extrapolate")
     # qg = pyinterp(log.(pg), log.(p), q)
 
+    return qg
+end
+
+function calc_qg_from_pgTg(pg, Tg, thermo_params)
+    ρg = TD.air_density(thermo_params, Tg, pg) # original T?
+    qg = TD.q_vap_saturation_generic(thermo_params, Tg, ρg, TD.Liquid()) # surface specific humidity over liquid
     return qg
 end
 

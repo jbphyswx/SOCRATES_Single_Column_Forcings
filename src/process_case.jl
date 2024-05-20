@@ -64,29 +64,36 @@ function process_case(
         initial_ind = get_initial_ind(data[forcing], flight_number) # should the reference be the first timestep? or what is the reference meant to be...
         summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
         SOCRATES_summary = NC.Dataset(summary_file, "r")
-        Tg_offset = SOCRATES_summary[:deltaT][findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)]  # I think this is backwards in table 2 in the paper... is really T_2m - SST as in Section 3
+        flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
+        Tg_offset = SOCRATES_summary[:deltaT][flight_ind]  # I think this is backwards in table 2 in the paper... is really T_2m - SST as in Section 3
         if surface ∈ ["reference_state", "reference", "ref"]  # we just want the surface reference state and we'll just return that
             Tg = data[forcing]["Tg"][:][initial_ind] + Tg_offset # might have to drop lon,lat dims or sum
             pg = data[forcing]["Ps"][:][initial_ind]
-            # qg = calc_qg(Tg, pg; thermo_params)
 
-            p = vec(data[forcing]["lev"])[:]
-            q = vec(selectdim(data[forcing]["q"], time_dim_num, initial_ind))[:] # select our q value subset along the time dimension
-            q = q ./ (1 .+ q) # mixing ratio to specific humidity
-
-            qg = calc_qg([pg], p, q)
-            qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
+            if Tg_offset < 0  # SST/T_orig > Tg, assume SST sets qg at ground level and serves as a source
+                qg = calc_qg_from_pgTg(pg, Tg, thermo_params)
+            else # SST/T_orig < Tg, stable boundary layer, assume latent air RH controls things... not SST
+                p = vec(data[forcing]["lev"])[:]
+                q = vec(selectdim(data[forcing]["q"], time_dim_num, initial_ind))[:] # select our q value subset along the time dimension
+                q = q ./ (1 .+ q) # mixing ratio to specific humidity
+                qg = calc_qg_extrapolate_pq([pg], p, q)
+                qg = collect(qg)[]  # Thermodynamics 0.10.2 returns a tuple rather than scalar, so this can collapse to scalar in either 0.10.1<= or 0.10.2>=
+            end
             return TD.PhaseEquil_pTq(thermo_params, pg, Tg, qg)
         elseif surface ∈ ["surface_conditions", "conditions", "cond"]
-            Tg = vec(data[forcing]["Tg"])[:][initial_ind:end] .+ Tg_offset # might have to drop lon,lat dims or sum
             pg = vec(data[forcing]["Ps"])[:][initial_ind:end]
-            # qg = calc_qg(Tg, pg; thermo_params)
-
-            p = vec(data[forcing]["lev"])[:]
-            q = selectdim(data[forcing]["q"], time_dim_num, initial_ind:size(data[forcing]["q"], time_dim_num)) # select our q value subset along the time dimension
-            q = vec.(collect(eachslice(q, dims = time_dim_num))) # turn our q from [lon, lat, lev, time] to a list of vectors along [lon,lat,lev] to match p
-            map(mr -> mr ./ (1.0 .+ mr), q) # mixing ratio to specific humidity for each vector we created in q
-            qg = map((pg, q) -> calc_qg([pg], p, q)[1], pg, q) # map the function to get out qg for each time step
+            Tg_orig = vec(data[forcing]["Tg"])[:][initial_ind:end]
+            Tg = Tg_orig .+ Tg_offset # might have to drop lon,lat dims or sum
+            # before we were extrapolating to surface to get qg which looks ok at first but after ts 1, the LES diverges, maybe it's supposed to be going towards Tg SST
+            if Tg_offset < 0  # SST > Tg, assume SST sets qg at ground level going forward and serves as a source (so use full Tg not Tg_orig)
+                qg = calc_qg_from_pgTg.(pg, Tg, thermo_params)  # surface specific humidity over liquid
+            else # SST < Tg, so stable boundary layer, so still set qg to the exigent air RH value not the SST saturation so that it doesnt serve as a source of moisture (even if SST saturation value is greater) (Not sure why boundary layer parameterization doesn't just handle it but we were getting huge moisture spikes at sfc from SST when RH was low, maybe it's a subsidence thing)
+                p = vec(data[forcing]["lev"])[:]
+                q = selectdim(data[forcing]["q"], time_dim_num, initial_ind:size(data[forcing]["q"], time_dim_num)) # select our q value subset along the time dimension
+                q = vec.(collect(eachslice(q, dims = time_dim_num))) # turn our q from [lon, lat, lev, time] to a list of vectors along [lon,lat,lev] to match p
+                q = map(mr -> mr ./ (1.0 .+ mr), q) # mixing ratio to specific humidity for each vector we created in q
+                qg = map((pg, q) -> calc_qg_extrapolate_pq([pg], p, q)[1], pg, q) # map the function to get out qg for each time step
+            end
 
             tg = data[forcing]["tsec"][initial_ind:end] # get the time array
             tg = tg .- tg[1] # i think we need this to get the initial time to be 0, so the interpolation works
@@ -111,27 +118,42 @@ function process_case(
     Tg = map(x -> x["Tg"], data)
     q = map(x -> x["q"], data)
     q = map(mr -> mr ./ (1 .+ mr), q) # mixing ratio to specific humidity for each forcing
-    # qg = map((Tg,pg)->calc_qg(Tg,pg;thermo_params), Tg, pg)
 
     #For not surface though, we need to add in the ΔT from the summary table in the Atlas paper (to tsg above?)
     summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
     SOCRATES_summary = NC.Dataset(summary_file, "r")
     flight_ind = findfirst(SOCRATES_summary["flight_number"][:] .== flight_number)
-    Tg = map(Tg -> Tg .+ SOCRATES_summary[:deltaT][flight_ind], Tg)
+    Tg_orig = map(x -> x, Tg) # copy (can we just use copy()?)
+    Tg_offset = SOCRATES_summary[:deltaT][flight_ind]  # I think this is backwards in table 2 in the paper... is really T_2m - SST as in Section 3
+    Tg = map(Tg -> Tg .+ Tg_offset, Tg)
 
-    base_calc_qg = (pg, p, q) -> calc_qg([pg], p, q[:])[1] # pg->[pg] for pyinterp and [1] for just the value out
-    qg = map(
-        (pg, p, q) ->
-            base_calc_qg.(
-                pg,
-                Ref(p[:]),
-                align_along_dimension(vec.(collect(eachslice(q; dims = time_dim_num))), z_dim_num),
-            ),
-        pg,
-        p,
-        q,
-    ) # iterate over forcings, the pg value, the p value is a fixed array, for the q value we take our slices in z and align them along the time dimension to match the shape of pg for calc_qg broadcasting, 
+    if Tg_offset < 0  # SST > Tg, assume Tg limits moisture below last known point and just extrapolate
+        base_calc_qg = (pg, p, q) -> calc_qg_extrapolate_pq([pg], p, q[:])[1] # pg->[pg] for pyinterp and [1] for just the value out
+        qg = map(
+            (pg, p, q) ->
+                base_calc_qg.(
+                    pg,
+                    Ref(p[:]),
+                    align_along_dimension(vec.(collect(eachslice(q; dims = time_dim_num))), z_dim_num),
+                ),
+            pg,
+            p,
+            q,
+        ) # iterate over forcings, the pg value, the p value is a fixed array, for the q value we take our slices in z and align them along the time dimension to match the shape of pg for calc_qg broadcasting, 
 
+    else # Tg > SST/T_orig, assume SST sets moisture  below last known point (t > t_orig), t_orig = Tg_q_sfc
+        # Tg_q_sfc = map((x,y) -> min.(x, y), Tg, Tg_orig) # min of Tg and T (Moisture comes from evaporation, if Tg < SST, SST limits moisture, if Tg > SST, Tg limits moisture) This is important bc it's how we extrapolate from the surface...
+        base_calc_qg = (pg, Tg) -> calc_qg_from_pgTg(pg, Tg, thermo_params) # pg->[pg] for pyinterp and [1] for just the value out 
+        qg = map(
+            (pg,Tg) ->
+                base_calc_qg.(
+                    pg,
+                    Tg,  
+                ),
+            pg,
+            Tg_orig, ### CHECK WHETHER WE WANT TO BE USING BASE TG OR OFFSET TG ### (OR MAYBE DIFF AT T=0 VS AFTERWARDS? WE DON'T ACTUALLY EVER SET TG (Tg_orig was wayyy too high on RF09, Tg is too high on RF10)
+        ) # TESTINGGGG (if p_input < pg, there may be a sfc discontinuity, otherwise we should get cleaner extrapolation...
+    end
 
     # Set up thermodynamic states for easier use (for both forcing and ERA -- note ERA subsidence for example depends on density which relies on T,p,q so need both even if forcing is :obs_data)
     # ts      = map((p,T,q)->TD.PhaseEquil_pTq.(thermo_params, p , T , q ), p,T,q)
