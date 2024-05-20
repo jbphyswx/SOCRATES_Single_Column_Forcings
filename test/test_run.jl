@@ -2,7 +2,7 @@
 
 FT = Float64
 
-flight_number = 9
+flight_number = 1
 forcing_type = :obs_data
 
 if forcing_type == :obs_data
@@ -15,7 +15,7 @@ end
 
 case_name = "SOCRATES_RF" * string(flight_number, pad = 2) * "_" * forcing_str * "_data"
 
-reload_environment = false
+reload_environment = true
 if reload_environment
     using Pkg
     Pkg.activate(expanduser("~/Research_Schneider/CliMa/TurbulenceConvection.jl/integration_tests/"))
@@ -46,7 +46,7 @@ if setup_environment
 
     namelist["time_stepping"]["dt_min"] = 0.5
     namelist["time_stepping"]["dt_max"] = 2.0
-    namelist["time_stepping"]["t_max"] = 3600.0 * 7.0
+    namelist["time_stepping"]["t_max"] = 3600.0 * 1.1
     namelist["stats_io"]["frequency"] = 600.0
     supersat_type = :Base
     namelist["microphysics"]["τ_sub_dep"] = 10000.0
@@ -108,7 +108,7 @@ if setup_environment
 end
 
 
-run_simulation = false
+run_simulation = true
 if run_simulation
     main1d(namelist)
 end
@@ -148,7 +148,7 @@ z = z_truth
 
 # ============================================================================================================================================================= #
 # create figure
-simul_ind = 43
+simul_ind = 2
 # ============================================================================================================================================================= #
 
 t_simul = simul_data.group["timeseries"]["t"][:]
@@ -208,12 +208,16 @@ p_t = plot(
     z_truth,
     label = "Truth",
     legend = :bottomleft,
+    dpi = 600,
+    marker = :circle,
+    markersize = 0.5,
+    markerstrokewidth = 0.2,
     xlabel = "T (K)",
     ylabel = "Height (m)",
     title = "Temperature (K)",
     ylim = (ymin, ymax),
 )
-p_s = plot!(data_simul, z_simul, label = "Simulation") # add simulation data to same plot
+p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :circle, markersize = 0.5, markerstrokewidth = 0.2) # add simulation data to same plot
 # vertical line at 5.22 + 273.15 degrees
 # surface temp dot 
 plot!(
@@ -248,13 +252,16 @@ p_t = plot(
     data_truth,
     z_truth,
     label = "Truth",
-    legend = :bottomright,
+    legend = :bottomleft,
+    marker = :circle,
+    markersize = 1.5,
+    dpi = 600,
     ylim = (ymin, ymax),
     xlabel = "qt (kg/kg)",
     ylabel = "Height (m)",
     title = "QT (kg/kg)",
 )
-p_s = plot!(data_simul, z_simul, label = "Simulation") # add simulation data to same plot
+p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :circle, markersize = 1.5) # add simulation data to same plot
 savefig(joinpath(outpath, "Figures", "qt.png")) # save to file
 
 p_t = plot(
@@ -508,6 +515,7 @@ p_t = plot(
     legend = :bottomleft,
     ylim = (ymin, ymax),
     color = :red,
+    dpi = 600,
     xlabel = "T (K)",
     ylabel = "Height (m)",
     title = "Updraft and Environmental Temperature (K)",
@@ -565,7 +573,7 @@ p_t = plot(
     ylabel = "Height (m)",
     title = "QT (kg/kg)",
 )
-p_s = plot!(data_simul, z_simul, label = "Simulation") # add simulation data to same plot
+p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :circle, markersize = 1.5) # add simulation data to same plot
 plot!(data_simul_up, z_simul, label = "Updraft", color = :red) # add simulation data to same plot
 plot!(data_simul_env, z_simul, label = "Environment", color = :blue) # add simulation data to same plot
 plot!(data_simul_plus_precip, z_simul, label = "simul+Precip", color = :black) # add simulation data to same plot

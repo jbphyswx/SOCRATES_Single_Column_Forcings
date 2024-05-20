@@ -145,11 +145,7 @@ function process_case(
         # Tg_q_sfc = map((x,y) -> min.(x, y), Tg, Tg_orig) # min of Tg and T (Moisture comes from evaporation, if Tg < SST, SST limits moisture, if Tg > SST, Tg limits moisture) This is important bc it's how we extrapolate from the surface...
         base_calc_qg = (pg, Tg) -> calc_qg_from_pgTg(pg, Tg, thermo_params) # pg->[pg] for pyinterp and [1] for just the value out 
         qg = map(
-            (pg,Tg) ->
-                base_calc_qg.(
-                    pg,
-                    Tg,  
-                ),
+            (pg, Tg) -> base_calc_qg.(pg, Tg),
             pg,
             Tg_orig, ### CHECK WHETHER WE WANT TO BE USING BASE TG OR OFFSET TG ### (OR MAYBE DIFF AT T=0 VS AFTERWARDS? WE DON'T ACTUALLY EVER SET TG (Tg_orig was wayyy too high on RF09, Tg is too high on RF10)
         ) # TESTINGGGG (if p_input < pg, there may be a sfc discontinuity, otherwise we should get cleaner extrapolation...
