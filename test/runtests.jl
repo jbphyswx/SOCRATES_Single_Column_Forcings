@@ -1,15 +1,23 @@
 using Test
 import SOCRATESSingleColumnForcings as SSCF
-import CLIMAParameters as CP
+import CLIMAParameters as CP # use CLIMAParameters = "0.7, 0.8, 0.9, 0.10"
+# import ClimaParams as CPP # would using this trouble w/ TC.jl? it's a different uuid technically..., use ClimaParams = "0.10"
 import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
 
 @testset "SOCRATESSingleColumnForcings" begin
     FT = Float64
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+
+    toml_dict = CP.create_toml_dict(FT; dict_type = "alias") # CP 0.7 and below, Thermodynamics 0.11 and above
     aliases = string.(fieldnames(TDP.ThermodynamicsParameters))
     param_pairs = CP.get_parameter_values!(toml_dict, aliases, "Thermodynamics")
     thermo_params = TDP.ThermodynamicsParameters{FT}(; param_pairs...)
+
+    # toml_dict = CP.create_toml_dict(FT;) # CP 0.8 and up need to figure out
+    # thermo_params = TDP.ThermodynamicsParameters(toml_dict)
+
+    # toml_dict = CPP.create_toml_dict(FT;) # ClimaParams 0.10+ (for use w/ cloudmicrophysics 0.18+)
+    # thermo_params = TDP.ThermodynamicsParameters(toml_dict)
 
     data = SSCF.open_atlas_les_input(9)
     new_z = data[:grid_data]
