@@ -16,6 +16,12 @@ thisdir = @__DIR__ # doesn't seem to work to use @__DIR__ directly as a variable
 
 """
 function download_atlas_les_inputs(; cases = cases)
+
+    # create joinpath(thisdir, "Input_Data") if doesn't exist
+    if !isdir(joinpath(thisdir, "Input_Data"))
+        mkdir(joinpath(thisdir, "Input_Data"))
+    end
+
     for flight in cases # the socrates flight numbers
         RF_num = "RF" * string(flight, pad = 2)
         obs_filename = RF_num * "_obs-based_SAM_input.nc" # e.g. https://atmos.uw.edu/~ratlas/RF12_obs-based_SAM_input.nc
@@ -87,6 +93,12 @@ SOCRATES_flight_observations_Box_links = Dict( # The raw observational data from
 
 """
 function download_atlas_les_outputs(; cases = cases)
+
+    # create joinpath(thisdir, "Output_Data") if doesn't exist
+    if !isdir(joinpath(thisdir, "Output_Data"))
+        mkdir(joinpath(thisdir, "Output_Data"))
+    end
+
     for flight in cases # the socrates flight numbers
         RF_num = "RF" * string(flight, pad = 2)
 
