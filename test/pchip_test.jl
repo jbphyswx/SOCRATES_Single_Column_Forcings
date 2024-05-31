@@ -19,7 +19,7 @@ end
 FT = Float64
 flight_number = 13
 forcing_str = "Obs"
-initial_condition=true
+initial_condition = true
 
 reload_SSCF = true
 if @isdefined(old_flight_number) && flight_number != old_flight_number
@@ -42,29 +42,54 @@ if reload_SSCF
     param_pairs = CP.get_parameter_values!(toml_dict, aliases, "Thermodynamics")
     thermo_params = TDP.ThermodynamicsParameters{FT}(; param_pairs...)
     Pkg.activate(expanduser("~/Research_Schneider/CliMa/SOCRATESSingleColumnForcings.jl/"))
-    include("/home/jbenjami/Research_Schneider/CliMa/SOCRATESSingleColumnForcings.jl/src/SOCRATESSingleColumnForcings.jl")
+    include(
+        "/home/jbenjami/Research_Schneider/CliMa/SOCRATESSingleColumnForcings.jl/src/SOCRATESSingleColumnForcings.jl",
+    )
 
     # get sscf output
-    SSCFout = Main.SOCRATESSingleColumnForcings.process_case(flight_number; thermo_params=thermo_params, initial_condition=initial_condition, use_LES_output_for_z = false)
-    SSCFout_lesz = Main.SOCRATESSingleColumnForcings.process_case(flight_number; thermo_params=thermo_params, initial_condition=initial_condition, use_LES_output_for_z = true)
+    SSCFout = Main.SOCRATESSingleColumnForcings.process_case(
+        flight_number;
+        thermo_params = thermo_params,
+        initial_condition = initial_condition,
+        use_LES_output_for_z = false,
+    )
+    SSCFout_lesz = Main.SOCRATESSingleColumnForcings.process_case(
+        flight_number;
+        thermo_params = thermo_params,
+        initial_condition = initial_condition,
+        use_LES_output_for_z = true,
+    )
     # get old z
-    SSCFout_z_old = Main.SOCRATESSingleColumnForcings.process_case(flight_number; thermo_params=thermo_params, initial_condition=initial_condition, use_LES_output_for_z = false, return_old_z = true)
-    SSCFout_z_old_lesz = Main.SOCRATESSingleColumnForcings.process_case(flight_number; thermo_params=thermo_params, initial_condition=initial_condition, use_LES_output_for_z = true, return_old_z = true)
+    SSCFout_z_old = Main.SOCRATESSingleColumnForcings.process_case(
+        flight_number;
+        thermo_params = thermo_params,
+        initial_condition = initial_condition,
+        use_LES_output_for_z = false,
+        return_old_z = true,
+    )
+    SSCFout_z_old_lesz = Main.SOCRATESSingleColumnForcings.process_case(
+        flight_number;
+        thermo_params = thermo_params,
+        initial_condition = initial_condition,
+        use_LES_output_for_z = true,
+        return_old_z = true,
+    )
 end
 redo_SSCF_postprocessing = false
 if redo_SSCF_postprocessing | reload_SSCF
     @info("redoing post processing")
     z_SSCF = Main.SOCRATESSingleColumnForcings.open_atlas_les_input(flight_number)[:grid_data]
-    old_z = SSCFout_z_old[:obs_data][:,:,:,1][:]
-    old_z_lesz = SSCFout_z_old_lesz[:obs_data][:,:,:,1][:]
-    
+    old_z = SSCFout_z_old[:obs_data][:, :, :, 1][:]
+    old_z_lesz = SSCFout_z_old_lesz[:obs_data][:, :, :, 1][:]
+
     old_z = reverse(old_z) # so it can be used for interpolation, it must be increasing
 
     # read input data
     SOCRATES_input_path = "/home/jbenjami/Research_Schneider/CliMa/SOCRATESSingleColumnForcings.jl/Data/Atlas_LES_Profiles/Input_Data/"
     LES_forcing_str = forcing_str == "Obs" ? "obs" : "ERA5"
     LES_forcing_suffix = forcing_str == "Obs" ? ".nc" : "_mar18_2022.nc"
-    LES_input_file = "RF" * string(flight_number, pad = 2) * "_" * LES_forcing_str * "-based_SAM_input" * LES_forcing_suffix
+    LES_input_file =
+        "RF" * string(flight_number, pad = 2) * "_" * LES_forcing_str * "-based_SAM_input" * LES_forcing_suffix
     LES_in_data = NCDatasets.Dataset(joinpath(SOCRATES_input_path, LES_input_file), "r") # technically there's some time editing we should do for this but we can put it off for obs
     input_lev = LES_in_data["lev"][:] / 100
     input_p_L = LES_in_data["lev"][:] / 100
@@ -89,12 +114,21 @@ y_0 = []
 
 f(x) = sind(x) * x - log(abs(x))
 y_0 = f.(x_0)
-xx = (x_0[1]-50):1:(x_0[end]+50)
+xx = (x_0[1] - 50):1:(x_0[end] + 50)
 
-spl_extrap = pyinterp(xx, x_0, y_0; method=:pchip, bc="extrapolate", return_spl=true,)    
+spl_extrap = pyinterp(xx, x_0, y_0; method = :pchip, bc = "extrapolate", return_spl = true)
 y_spl_extrap = spl_extrap.(xx)
 
-spl_smooth = pyinterp(xx, x_0, y_0; method=:pchip_smooth_derivative, bc="extrapolate", return_spl=true, f_enhancement_factor=2, f_p_enhancement_factor=4)
+spl_smooth = pyinterp(
+    xx,
+    x_0,
+    y_0;
+    method = :pchip_smooth_derivative,
+    bc = "extrapolate",
+    return_spl = true,
+    f_enhancement_factor = 2,
+    f_p_enhancement_factor = 4,
+)
 
 y_spl_smooth = spl_smooth.(xx)
 
@@ -104,17 +138,17 @@ y_spl_smooth = spl_smooth.(xx)
 plot(
     x_0,
     y_0,
-    label="y(x)",
-    lw=2,
+    label = "y(x)",
+    lw = 2,
     legend = :bottomleft,
     dpi = dpi,
     marker = :circle,
     markersize = 5.0,
     markerstrokewidth = 0.2,
-    color = :black
+    color = :black,
 )
-plot!(xx, y_spl_extrap, label="pchip_extrap(x)", lw=2, linestyle=:dot, color=:red)
-plot!(xx, y_spl_smooth, label="pchip_smooth(x)", lw=2, linestyle=:dot, color=:blue)
+plot!(xx, y_spl_extrap, label = "pchip_extrap(x)", lw = 2, linestyle = :dot, color = :red)
+plot!(xx, y_spl_smooth, label = "pchip_smooth(x)", lw = 2, linestyle = :dot, color = :blue)
 
 savefig(joinpath(outpath, "pchip_test", "f(x).png"))
 
@@ -129,19 +163,37 @@ dfdx_x_0 = ForwardDiff.derivative.(f, x_0)
 plot(
     xx,
     dfdx,
-    label="df/dx",
-    lw=2,
+    label = "df/dx",
+    lw = 2,
     legend = :bottomleft,
     dpi = dpi,
     marker = :circle,
     markersize = 1.0,
     markerstrokewidth = 0.2,
-    color = :black
+    color = :black,
 )
 
-scatter!(x_0, dfdx_x_0, markersize = 5.0, markerstrokewidth = 0.2, color= :black, label=:none)
-plot!(xx, dspl_extrap_dx, lw=1,marker = :circle, markersize = 1.0, markerstrokewidth = 0.2, label = "dspl_extrap_dx", color=:red)
-plot!(xx, dspl_smooth_dx, lw=1,marker = :circle, markersize = 1.0, markerstrokewidth = 0.2, label = "dspl_smooth_dx", color=:blue)
+scatter!(x_0, dfdx_x_0, markersize = 5.0, markerstrokewidth = 0.2, color = :black, label = :none)
+plot!(
+    xx,
+    dspl_extrap_dx,
+    lw = 1,
+    marker = :circle,
+    markersize = 1.0,
+    markerstrokewidth = 0.2,
+    label = "dspl_extrap_dx",
+    color = :red,
+)
+plot!(
+    xx,
+    dspl_smooth_dx,
+    lw = 1,
+    marker = :circle,
+    markersize = 1.0,
+    markerstrokewidth = 0.2,
+    label = "dspl_smooth_dx",
+    color = :blue,
+)
 savefig(joinpath(outpath, "pchip_test", "dfdx.png"))
 
 
@@ -195,9 +247,9 @@ savefig(joinpath(outpath, "pchip_test", "dfdx.png"))
 
 # q_in_real = reverse(LES_in_data["q"][:][1,1,:,1][:])
 
-input_q_L = LES_in_data["q"][1,1,:,1][:]
+input_q_L = LES_in_data["q"][1, 1, :, 1][:]
 
-input_q_L = input_q_L ./(1 .+ input_q_L) # input to mixing ratio
+input_q_L = input_q_L ./ (1 .+ input_q_L) # input to mixing ratio
 # SSCFout.qt_nudge[:] .= SSCFout.qt_nudge ./(1 .- SSCFout.qt_nudge)
 
 #input 
@@ -217,17 +269,17 @@ plot(
     # old_z,
     input_q_L,
     old_z_L,
-    label="q_in(z)",
-    lw=.25,
+    label = "q_in(z)",
+    lw = 0.25,
     legend = :topright,
-    dpi = dpi*4,
+    dpi = dpi * 4,
     marker = :circle,
     markersize = 0.25,
     markerstrokewidth = 0.025,
     color = :black,
     ylims = (-100, 4900),
     # xlim = (0, 0.0028), # 9
-    xlim = (0, .005), # 13
+    xlim = (0, 0.005), # 13
     minorgrid = true,
 )
 # plot!(spl_smooth.(new_z), new_z, label="q_smooth(z)", lw=.5, linestyle=:dot, color=:red, marker = :circle, markersize = 0.25, markerstrokewidth = 0.025)
@@ -235,8 +287,26 @@ plot(
 
 # plot!( q_in_real, old_z[2:end], label="q_in_real(z)", lw=.25, linestyle=:dot, color=:purple, marker = :circle, markersize = 0.25, markerstrokewidth = 0.025)
 
-plot!(SSCFout.qt_nudge, z_SSCF, label="q_sscf(z)", lw=.03, color=:cyan, marker = :circle, markersize = .1, markerstrokewidth = 0.005)
-plot!(SSCFout_lesz.qt_nudge, z_SSCF, label="q_sscf_lesz(z)", lw=.03, color=:magenta, marker = :circle, markersize = .1, markerstrokewidth = 0.005)
+plot!(
+    SSCFout.qt_nudge,
+    z_SSCF,
+    label = "q_sscf(z)",
+    lw = 0.03,
+    color = :cyan,
+    marker = :circle,
+    markersize = 0.1,
+    markerstrokewidth = 0.005,
+)
+plot!(
+    SSCFout_lesz.qt_nudge,
+    z_SSCF,
+    label = "q_sscf_lesz(z)",
+    lw = 0.03,
+    color = :magenta,
+    marker = :circle,
+    markersize = 0.1,
+    markerstrokewidth = 0.005,
+)
 savefig(joinpath(outpath, "pchip_test", "q(z).png"))
 
 # --------------------------------------------------------------------------- #
@@ -248,7 +318,7 @@ savefig(joinpath(outpath, "pchip_test", "q(z).png"))
 
 # T_in_real = reverse(LES_in_data["T"][:][1,1,:,1][:])
 
-input_q_T = LES_in_data["T"][1,1,:,1][:] .* (1000 ./ input_lev) .^ 0.286
+input_q_T = LES_in_data["T"][1, 1, :, 1][:] .* (1000 ./ input_lev) .^ 0.286
 
 #  what we got
 # θ_nudge = [1944.5835710665965, 1602.8407093918106, 1391.595245076395, 1155.9867693177894, 1013.5589888761049, 896.093129986276, 708.8423198654262, 623.3570815972575, 533.0740425693108, 484.9202476135982, 438.2085983376255, 412.7803095729882, 391.3007482909537, 376.7849606884522, 364.66277508553725, 353.3808232892484, 342.8201851026278, 324.9442209141309, 309.70963044731946, 302.54570367068675, 298.41522748036755, 294.465624449812, 291.0640848421155, 287.3277443129354, 283.3755290509006, 280.7930868142308, 279.0415072417078, 278.25342445813305, 277.16070341286894, 276.93217585959337, 276.9333890511754, 276.67086727628293, 275.8029519235561, 276.2056440134155, 275.6783137734898, 275.47785551306595, 275.2466480289731, 275.4264077960204, 274.64953535062017, 275.1903215901881]
@@ -267,12 +337,12 @@ plot(
     # old_z,
     input_q_T,
     old_z_L,
-    label="θ(z)",
-    lw=.5,
+    label = "θ(z)",
+    lw = 0.5,
     legend = :right,
-    dpi = dpi*4,
+    dpi = dpi * 4,
     marker = :circle,
-    markersize = .25,
+    markersize = 0.25,
     markerstrokewidth = 0.025,
     color = :black,
     ylims = (-100, 4900),
@@ -290,8 +360,26 @@ ax2 = twiny()
 # H_nudge_320 =  [275.13104980901556, 275.0174376588642, 274.9091836777308, 274.80657237016504, 274.70979340586666, 274.67378262369425, 274.7410235730707, 274.80364921174777, 274.8618471539815, 274.9158425368792, 274.9658980203994, 275.01246387875665, 275.0559903861655, 275.097002862543, 275.1361016735085, 275.17403727608644, 275.2115601273009, 275.2490829785155, 275.28660582973004, 275.32412868094457, 275.3616515321591, 275.3991743833736, 275.4240736489235, 275.41556163404044, 275.40704961915736, 275.3985376042742, 275.39002558939114, 275.38151357450806, 275.373001559625, 275.3644895447419, 275.3559775298588, 275.34746551497574, 275.33895350009266, 275.3304414852096, 275.32192947032644, 275.3134174554434, 275.3049054405603, 275.29639342567714, 275.28788141079406, 275.27936939591103, 275.2708573810279, 275.2623453661448, 275.25383335126173, 275.24832149912095, 275.2590584270762, 275.26979535503136, 275.28053228298654, 275.2912692109417, 275.3020061388969, 275.3127430668521, 275.32347999480726, 275.3342169227625, 275.3449538507177, 275.35569077867285, 275.3664277066281, 275.3771646345832, 275.38790156253845, 275.3986384904936, 275.4093754184488, 275.420112346404, 275.43084927435916, 275.4415862023144, 275.4523231302696, 275.4630600582248, 275.47379698617993, 275.483527897143, 275.4926474421566, 275.5017669871703, 275.5108865321839, 275.5200060771976, 275.52912562221127, 275.5382451672249, 275.5473647122385, 275.5564842572522, 275.5656038022658, 275.5747233472795, 275.5838428922931, 275.5929624373067, 275.60208198232044, 275.61120152733406, 275.6203210723477, 275.62944061736135, 275.63856016237503, 275.64767970738865, 275.6567992524023, 275.66591879741594, 275.6750383424296, 275.6933591678578, 275.71683700423796, 275.7403148406182, 275.7637926769984, 275.7872705133786, 275.8107483497588, 275.834226186139, 275.8577040225192, 275.88118185889937, 275.9046596952796, 275.9281375316598, 275.95161536804, 275.9750932044202, 275.99857104080036, 276.02204887718057, 276.0455267135608, 276.0690045499409, 276.0924823863212, 276.11596022270135, 276.13943805908156, 276.16291589546177, 276.1863937318419, 276.20248632579853, 276.18495002488606, 276.16741372397365, 276.1498774230612, 276.13234112214866, 276.1148048212362, 276.0972685203238, 276.0797322194113, 276.06219591849884, 276.0446596175863, 276.02712331667385, 276.00958701576144, 275.992050714849, 275.9745144139365, 275.956978113024, 275.93944181211157, 275.92190551119904, 275.90436921028663, 275.88683290937416, 275.8692966084617, 275.85176030754917, 275.83422400663676, 275.81668770572423, 275.8109543331821, 275.84787894076004, 275.8848035483379, 275.9217281559159, 275.9586527634938, 275.9955773710717, 276.0325019786496, 276.0694265862275, 276.10635119380544, 276.14327580138337, 276.18020040896124, 276.21712501653917, 276.2540496241171, 276.290974231695, 276.32789883927296, 276.36482344685083, 276.40174805442877, 276.43867266200664, 276.47559726958457, 276.5125218771625, 276.54944648474043, 276.5863710923183, 276.62329569989623, 276.66022030747416, 276.6786234273401, 276.6895221552136, 276.700420883087, 276.7113196109605, 276.72221833883395, 276.7331170667074, 276.74401579458083, 276.7549145224543, 276.76581325032777, 276.77671197820126, 276.7876107060747, 276.7985094339482, 276.8094081618216, 276.8203068896951, 276.8312056175685, 276.842104345442, 276.85300307331545, 276.86390180118894, 276.8748005290623, 276.8856992569358, 276.89659798480926, 276.9074967126827, 276.9183954405562, 276.9292941684297, 276.9333583590354, 276.93330919488255, 276.9332600307296, 276.93321086657676, 276.9331617024239, 276.93311253827096, 276.9330633741181, 276.9330142099652, 276.9329650458123, 276.9329158816594, 276.9328667175065, 276.93281755335363, 276.93276838920076, 276.9327192250479, 276.932670060895, 276.9326208967421, 276.9325717325892, 276.9325225684363, 276.9324734042834, 276.93242424013056, 276.9323750759777, 276.93232591182476, 276.9322767476719, 276.932227583519, 276.9321784193661, 276.9561531605606, 276.9814474287444, 277.0067416969282, 277.03203596511196, 277.0573302332958, 277.0826245014796, 277.10791876966334, 277.13321303784716, 277.15850730603097, 277.65476439413584, 278.19579927445426, 278.6008544047283, 278.9896999758492, 279.0810554166068, 279.1266826714774, 279.172309926348, 279.2179371812187, 279.2635644360894, 279.30919169095995, 279.35481894583063, 279.40044620070125, 279.4460734555719, 279.49170071044256, 279.5373279653132, 279.58295522018386, 279.6285824750545, 279.6742097299251, 279.71983698479573, 279.7654642396664, 279.81109149453704, 279.8567187494077, 279.90234600427834, 279.94797325914897, 279.9936005140196, 280.03922776889027, 280.0848550237609, 280.1304822786316, 280.1761095335022, 280.2217367883728, 280.26736404324345, 280.3129912981141, 280.35861855298475, 280.40424580785543, 280.44987306272606, 280.4955003175967, 280.5411275724673, 280.586754827338, 280.6323820822086, 280.67800933707923, 280.7236365919499, 280.76926384682054, 280.8156634478242, 280.86304863050503, 280.9107645173521, 280.9590945690794, 281.0082750029485, 281.05849479276867, 281.110037399254, 281.16304455276133, 281.2177997140046, 281.27444461334096, 281.33321546803177, 281.3943012518865, 281.45789093871434, 281.524220745777, 281.5933851599791, 281.66562039858223, 281.7410681919434, 281.81987027041953, 281.90226285127227, 281.9883876648586, 282.0783391980832, 282.17225918130293, 282.27038383177955, 282.37271314951295, 282.47948335176477, 282.59078892543977, 282.70677160089474, 282.82747862158215, 282.95305171785884, 283.0836326200819, 283.219315815156, 283.36010130308097, 283.5626233351589, 283.77952333505823, 284.00413593632646, 284.23659644775955, 284.4770401781533, 284.72553478190576, 284.9822155678129, 285.24708253587465, 285.520270994887, 285.80178094485007, 286.09168004016163, 286.39003593521977, 286.69691628442234, 287.0122534333715, 287.33516042874476, 287.62739869784286, 287.92712873131654, 288.2344099876133, 288.5491830082857, 288.87150725178117, 289.2013232596523, 289.53869049034654, 289.8834305685216, 290.23560295262484, 290.59514818420894, 290.9620068048264, 291.29336721208136, 291.6146789164077, 291.94205310572124, 292.275339470477, 292.6145380106749, 292.95954851995145]
 # plot!(ax2, H_nudge_320, new_z, label="H_nudge_320(z)", lw=.5, linestyle=:dot, color=:cyan, marker = :circle, markersize = 0.25, markerstrokewidth = 0.025)
 
-plot!(SSCFout.H_nudge, z_SSCF, label="q_sscf(z)", lw=.03, color=:cyan, marker = :circle, markersize = .1, markerstrokewidth = 0.005)
-plot!(SSCFout_lesz.H_nudge, z_SSCF, label="q_sscf_lesz(z)", lw=.03, color=:magenta, marker = :circle, markersize = .1, markerstrokewidth = 0.005)
+plot!(
+    SSCFout.H_nudge,
+    z_SSCF,
+    label = "q_sscf(z)",
+    lw = 0.03,
+    color = :cyan,
+    marker = :circle,
+    markersize = 0.1,
+    markerstrokewidth = 0.005,
+)
+plot!(
+    SSCFout_lesz.H_nudge,
+    z_SSCF,
+    label = "q_sscf_lesz(z)",
+    lw = 0.03,
+    color = :magenta,
+    marker = :circle,
+    markersize = 0.1,
+    markerstrokewidth = 0.005,
+)
 savefig(joinpath(outpath, "pchip_test", "θ(z).png"))
 
 # --------------------------------------------------------------------------- #

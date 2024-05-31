@@ -36,8 +36,8 @@ function get_data_new_z_t_LES(
     initial_condition = false,
     assume_monotonic = false,
     interp_method = :Spline1D,
-    Spline1D_interp_kwargs = Dict{Symbol, Any}(:bc=>"extrapolate"), # default to extrapolate bc RF09 was run on a different grid for some reason, we're not necessarily guaranteed to have the same z
-    pchip_interp_kwargs = Dict{Symbol, Any}(:bc=>"extrapolate"),
+    Spline1D_interp_kwargs = Dict{Symbol, Any}(:bc => "extrapolate"), # default to extrapolate bc RF09 was run on a different grid for some reason, we're not necessarily guaranteed to have the same z
+    pchip_interp_kwargs = Dict{Symbol, Any}(:bc => "extrapolate"),
     ground_indices = :end,
 )
 
@@ -101,9 +101,25 @@ function get_data_new_z_t_LES(
     # interpolate to new z (though it should alreayd be on the new z, though I guess you could do some smoothing/rounding etc)
 
     if interp_method ∈ [:Spline1D, :Dierckx]
-        vardata = var_to_new_coord(vardata, z_old, z_dim_num; coord_new = z_new, data = data, interp_method=interp_method, interp_kwargs=Spline1D_interp_kwargs, ) # extrapolate bc it's not a guarantee that our new z  will contain our desired z (mostly bc RF09 was run on a different grid for some reason) 
+        vardata = var_to_new_coord(
+            vardata,
+            z_old,
+            z_dim_num;
+            coord_new = z_new,
+            data = data,
+            interp_method = interp_method,
+            interp_kwargs = Spline1D_interp_kwargs,
+        ) # extrapolate bc it's not a guarantee that our new z  will contain our desired z (mostly bc RF09 was run on a different grid for some reason) 
     elseif interp_method ∈ [:pchip_smooth_derivative, :pchip_smooth]
-        vardata = var_to_new_coord(vardata, z_old, z_dim_num; coord_new = z_new, data = data, interp_method=interp_method, interp_kwargs=pchip_interp_kwargs,)
+        vardata = var_to_new_coord(
+            vardata,
+            z_old,
+            z_dim_num;
+            coord_new = z_new,
+            data = data,
+            interp_method = interp_method,
+            interp_kwargs = pchip_interp_kwargs,
+        )
     else
         error("unsupported interpolation method")
     end
@@ -128,5 +144,3 @@ function get_data_new_z_t_LES(
     return vardata
 
 end
-
-

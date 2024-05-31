@@ -77,7 +77,9 @@ if reload_SSCF | !isdefined(Main, :SOCRATESSingleColumnForcings)
     param_pairs = CP.get_parameter_values!(toml_dict, aliases, "Thermodynamics")
     thermo_params = TDP.ThermodynamicsParameters{FT}(; param_pairs...)
     Pkg.activate(expanduser("~/Research_Schneider/CliMa/SOCRATESSingleColumnForcings.jl/"))
-    include("/home/jbenjami/Research_Schneider/CliMa/SOCRATESSingleColumnForcings.jl/src/SOCRATESSingleColumnForcings.jl")
+    include(
+        "/home/jbenjami/Research_Schneider/CliMa/SOCRATESSingleColumnForcings.jl/src/SOCRATESSingleColumnForcings.jl",
+    )
 end
 # ------------------ #
 
@@ -89,13 +91,13 @@ for flight_number in flight_numbers
 
         if !@isdefined(NameList) # For if we didn't use reload_enviornment (I'm not sure tbf if this also checks for modules lol, I guess we'll find out)
             @info("NameList not defined by module, defining now as simple Dict()") # This allows plotting even if you haven't gone through the environment loading by allowing you to get the simname/uuid etc in namelist 
-            namelist = Dict{String, Union{Dict,NamedTuple}}(
+            namelist = Dict{String, Union{Dict, NamedTuple}}(
                 "time_stepping" => Dict(),
                 "stats_io" => Dict(),
                 "microphysics" => Dict(),
                 "user_args" => Dict(),
                 "user_aux" => Dict(),
-                "turbulence" => Dict("EDMF_PrognosticTKE"=>Dict()),
+                "turbulence" => Dict("EDMF_PrognosticTKE" => Dict()),
                 "thermodynamics" => Dict(),
                 "output" => Dict(),
                 "meta" => Dict("simname" => case_name, "uuid" => ""),
@@ -168,13 +170,13 @@ for flight_number in flight_numbers
         # testing mild detrainment until through limit then strong (runs slower bc updraft?) (big spike at top but at least makes it there -- runs super slow in adaptive mode)...
         namelist["turbulence"]["EDMF_PrognosticTKE"]["area_limiter_scale"] = 1 # testing strong detrainment...
         namelist["turbulence"]["EDMF_PrognosticTKE"]["area_limiter_power"] = 10 # too 
- 
+
 
         # careful, we're getting qt + precip right but not qt, probably bc we're raining/snowing out our cloud lol... (the snow timescale is fast)
         namelist["microphysics"]["τ_acnv_rai"] = 25000.0
         namelist["microphysics"]["τ_acnv_sno"] = 10000.0
         namelist["microphysics"]["q_liq_threshold"] = 1e-4
-        namelist["microphysics"]["q_ice_threshold"] = 1e-5 
+        namelist["microphysics"]["q_ice_threshold"] = 1e-5
 
 
 
@@ -221,12 +223,17 @@ for flight_number in flight_numbers
 
     LES_forcing_str = forcing_str == "Obs" ? "obs" : "ERA5"
     LES_forcing_suffix = forcing_str == "Obs" ? ".nc" : "_mar18_2022.nc"
-    LES_input_file = "RF" * string(flight_number, pad = 2) * "_" * LES_forcing_str * "-based_SAM_input" * LES_forcing_suffix
+    LES_input_file =
+        "RF" * string(flight_number, pad = 2) * "_" * LES_forcing_str * "-based_SAM_input" * LES_forcing_suffix
 
 
     # ------------------ #
     initial_condition = true
-    SSCFout = Main.SOCRATESSingleColumnForcings.process_case(flight_number; thermo_params=thermo_params, initial_condition=initial_condition)
+    SSCFout = Main.SOCRATESSingleColumnForcings.process_case(
+        flight_number;
+        thermo_params = thermo_params,
+        initial_condition = initial_condition,
+    )
     z_SSCF = Main.SOCRATESSingleColumnForcings.open_atlas_les_input(flight_number)[:grid_data]
 
     # ------------------ #
@@ -314,9 +321,9 @@ for flight_number in flight_numbers
 
         ymax = 4000.0
         # ymax = nothing
-        ymax=4800
+        ymax = 4800
         ymin = -100.0
-        ymaxs = Dict(1=>4800, 9=>4800, 10=>4800, 12=>3000, 13=>3000)
+        ymaxs = Dict(1 => 4800, 9 => 4800, 10 => 4800, 12 => 3000, 13 => 3000)
         dpi = 600
         minorgrid = true
 
@@ -336,7 +343,7 @@ for flight_number in flight_numbers
             ylabel = "Height (m)",
             title = "Temperature (K)",
             ylim = (ymin, ymaxs[flight_number]),
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(
             data_simul,
@@ -382,7 +389,7 @@ for flight_number in flight_numbers
             xlabel = "T diff (K)",
             ylabel = "Height (m)",
             title = "Temperature (K) diff",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         savefig(joinpath(outpath, "Figures", "temperature_diff.png")) # save to file
 
@@ -408,11 +415,11 @@ for flight_number in flight_numbers
             title = "Temperature (K)",
             yflip = true,
             ylim = (500, 1020),
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(
             data_simul,
-            simul_data.group["reference"]["p_c"] / 100.,
+            simul_data.group["reference"]["p_c"] / 100.0,
             label = "Simulation",
             marker = :circle,
             markersize = 0.4,
@@ -427,12 +434,12 @@ for flight_number in flight_numbers
             marker = :circle,
             markersize = 0.25,
             markerstrokewidth = 0.05,
-            linewidth=.1,
-            color=:blue
+            linewidth = 0.1,
+            color = :blue,
         )
 
 
-        input_T_L = LES_in_data["T"][1,1,:,1][:]
+        input_T_L = LES_in_data["T"][1, 1, :, 1][:]
         input_p_L = LES_in_data["lev"][:] / 100
 
         input_T_L = input_T_L[input_p_L .> minimum(p_truth)]
@@ -444,10 +451,10 @@ for flight_number in flight_numbers
             label = "Input",
             dpi = dpi,
             marker = :circle,
-            markersize = .75,
+            markersize = 0.75,
             markerstrokewidth = 0.05,
-            linewidth=.1,
-            color=:red
+            linewidth = 0.1,
+            color = :red,
         )
 
         savefig(joinpath(outpath, "Figures", "temperature_p.png")) # save to file
@@ -458,7 +465,7 @@ for flight_number in flight_numbers
         ### qt_mean ###
         data_simul = simul_data.group["profiles"]["qt_mean"][:, simul_ind]
         data_truth = truth_data["QT"][:, truth_ind] ./ 1000 # probably is mixing ratio
-        data_truth = data_truth ./ (1  .+ data_truth) # convert to specific humidity
+        data_truth = data_truth ./ (1 .+ data_truth) # convert to specific humidity
 
         p_t = plot(
             data_truth,
@@ -468,23 +475,41 @@ for flight_number in flight_numbers
             marker = :circle,
             markersize = 0.5,
             markerstrokewidth = 0.05,
-            linewidth=0.25,
+            linewidth = 0.25,
             dpi = dpi,
             ylim = (ymin, ymaxs[flight_number]),
             xlabel = "qt (kg/kg)",
             ylabel = "Height (m)",
             title = "QT (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
 
         if initial_condition
             SSCFout_q = SSCFout.qt_nudge
         else
-            SSCFout_q = (x->x([0])[1]).(SSCFout.qt_nudge)
+            SSCFout_q = (x -> x([0])[1]).(SSCFout.qt_nudge)
         end
 
-        p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :square, markersize = .5,  markerstrokewidth = 0.05, linewidth=0.25, color=:orange) # add simulation data to same plot
-        p_s = plot!(SSCFout_q, z_SSCF, label = "Nudging", marker = :circle, markersize = .5,  markerstrokewidth = 0.05, linewidth=0.25, color=:green) # add simulation data to same plot
+        p_s = plot!(
+            data_simul,
+            z_simul,
+            label = "Simulation",
+            marker = :square,
+            markersize = 0.5,
+            markerstrokewidth = 0.05,
+            linewidth = 0.25,
+            color = :orange,
+        ) # add simulation data to same plot
+        p_s = plot!(
+            SSCFout_q,
+            z_SSCF,
+            label = "Nudging",
+            marker = :circle,
+            markersize = 0.5,
+            markerstrokewidth = 0.05,
+            linewidth = 0.25,
+            color = :green,
+        ) # add simulation data to same plot
 
         savefig(joinpath(outpath, "Figures", "qt.png")) # save to file
 
@@ -501,14 +526,14 @@ for flight_number in flight_numbers
             xlabel = "qt diff (K)",
             ylabel = "Height (m)",
             title = "qt_diff",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         savefig(joinpath(outpath, "Figures", "qt_diff.png")) # save to file
 
         # --------------------------------------------------------------------------------------------- #
         # qt on pressure grid
         data_simul = simul_data.group["profiles"]["qt_mean"][:, simul_ind]
-        data_truth = truth_data["QT"][:, truth_ind] / 1000.
+        data_truth = truth_data["QT"][:, truth_ind] / 1000.0
 
         p_truth = truth_data["PRES"][:, truth_ind]
         p_truth_alt = truth_data["p"][:]
@@ -527,11 +552,11 @@ for flight_number in flight_numbers
             title = "Temperature (K)",
             yflip = true,
             ylim = (500, 1020),
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(
             data_simul,
-            simul_data.group["reference"]["p_c"] / 100.,
+            simul_data.group["reference"]["p_c"] / 100.0,
             label = "Simulation",
             marker = :circle,
             markersize = 0.4,
@@ -546,16 +571,16 @@ for flight_number in flight_numbers
             marker = :circle,
             markersize = 0.25,
             markerstrokewidth = 0.05,
-            linewidth=.1,
-            color=:blue
+            linewidth = 0.1,
+            color = :blue,
         )
 
 
-        input_q_L = LES_in_data["q"][1,1,:,1][:]
+        input_q_L = LES_in_data["q"][1, 1, :, 1][:]
         input_p_L = LES_in_data["lev"][:] / 100
 
-        input_q_L = input_q_L[input_p_L .> minimum(p_truth)-50]
-        input_p_L = input_p_L[input_p_L .> minimum(p_truth)-50]
+        input_q_L = input_q_L[input_p_L .> minimum(p_truth) - 50]
+        input_p_L = input_p_L[input_p_L .> minimum(p_truth) - 50]
 
         p_s = plot!(
             input_q_L,
@@ -563,10 +588,10 @@ for flight_number in flight_numbers
             label = "Input",
             dpi = dpi,
             marker = :circle,
-            markersize = .75,
+            markersize = 0.75,
             markerstrokewidth = 0.05,
-            linewidth=.1,
-            color=:red
+            linewidth = 0.1,
+            color = :red,
         )
 
 
@@ -590,7 +615,7 @@ for flight_number in flight_numbers
             xlabel = "ql (kg/kg)",
             ylabel = "Height (m)",
             title = "QL (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul, z_simul, label = "Simulation") # add simulation data to same plot
         savefig(joinpath(outpath, "Figures", "ql.png")) # save to file
@@ -607,7 +632,7 @@ for flight_number in flight_numbers
             xlabel = "ql diff (K)",
             ylabel = "Height (m)",
             title = "ql_diff",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         savefig(joinpath(outpath, "Figures", "ql_diff.png")) # save to file
 
@@ -630,7 +655,7 @@ for flight_number in flight_numbers
             xlabel = "qi (kg/kg)",
             ylabel = "Height (m)",
             title = "QI (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul, z_simul, label = "Simulation") # add simulation data to same plot
         savefig(joinpath(outpath, "Figures", "qi.png")) # save to file
@@ -647,7 +672,7 @@ for flight_number in flight_numbers
             xlabel = "qi diff (K)",
             ylabel = "Height (m)",
             title = "qi_diff",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         savefig(joinpath(outpath, "Figures", "qi_diff.png")) # save to file
 
@@ -672,7 +697,7 @@ for flight_number in flight_numbers
             xlabel = "qc (kg/kg)",
             ylabel = "Height (m)",
             title = "QC (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul, z_simul, label = "Simulation") # add simulation data to same plot
         savefig(joinpath(outpath, "Figures", "qc.png")) # save to file
@@ -689,7 +714,7 @@ for flight_number in flight_numbers
             xlabel = "qc diff (K)",
             ylabel = "Height (m)",
             title = "qc_diff",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         savefig(joinpath(outpath, "Figures", "qc_diff.png")) # save to file
 
@@ -700,36 +725,54 @@ for flight_number in flight_numbers
         data_truth = truth_data["THETAL"][:, truth_ind]
 
 
-        
+
 
         p_t = plot(
             data_truth,
             z_truth,
             label = "Truth",
             legend = :bottomright,
-            dpi = dpi*4,
+            dpi = dpi * 4,
             marker = :circle,
             markersize = 0.5,
             markerstrokewidth = 0.2,
-            linewidth=0.25,
+            linewidth = 0.25,
             ylim = (ymin, ymaxs[flight_number]),
             xlabel = "theta_l (K)",
             ylabel = "Height (m)",
             title = "theta_l (K)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
-        p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :square, markersize = 0.5,  markerstrokewidth = 0.2, linewidth=0.25, color=:orange) # add simulation data to same plot
+        p_s = plot!(
+            data_simul,
+            z_simul,
+            label = "Simulation",
+            marker = :square,
+            markersize = 0.5,
+            markerstrokewidth = 0.2,
+            linewidth = 0.25,
+            color = :orange,
+        ) # add simulation data to same plot
 
         if initial_condition
             SSCFout_θ = SSCFout.H_nudge
         else
-            SSCFout_θ = (x->x([0])[1]).(SSCFout.H_nudge)
+            SSCFout_θ = (x -> x([0])[1]).(SSCFout.H_nudge)
         end
 
         # @info("z_SSCF", length(z_SSCF))
         # @info("z_simul", length(z_simul))
         # @info("SSCFout_θ", length(SSCFout_θ))
-        plot!(SSCFout_θ, z_SSCF, label = "Nudging", marker = :circle, markersize = .5,  markerstrokewidth = 0.05, linewidth=0.25, color=:green) # add simulation data to same plot
+        plot!(
+            SSCFout_θ,
+            z_SSCF,
+            label = "Nudging",
+            marker = :circle,
+            markersize = 0.5,
+            markerstrokewidth = 0.05,
+            linewidth = 0.25,
+            color = :green,
+        ) # add simulation data to same plot
 
         # data_simul_θ_offset = (data_simul[1:end-1] + data_simul[2:end])/2
         # plot!(data_simul_θ_offset, z_simul[2:end], label = "simulation offset", marker = :cross, markersize = .5,  markerstrokewidth = 0.05, linewidth=0.05, color=:purple) # add simulation data to same plot
@@ -757,7 +800,7 @@ for flight_number in flight_numbers
             xlabel = "theta_l diff (K)",
             ylabel = "Height (m)",
             title = "thetal_diff",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         savefig(joinpath(outpath, "Figures", "theta_l_diff.png")) # save to file
 
@@ -781,7 +824,7 @@ for flight_number in flight_numbers
             xlabel = "q (kg/kg)",
             ylabel = "Height (m)",
             title = "QL and QI (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul_ql, z_simul, label = "Simulation liq", color = :lime) # add simulation data to same plot
 
@@ -795,7 +838,7 @@ for flight_number in flight_numbers
             ylim = (ymin, ymaxs[flight_number]),
             legend = :bottom,
             color = :blue,
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(xaxis2, data_simul_qi, z_simul, label = "Simulation ice", color = :cyan) # add simulation data to same plot
         savefig(joinpath(outpath, "Figures", "ql_qi.png")) # save to file
@@ -819,7 +862,7 @@ for flight_number in flight_numbers
             xlabel = "q (kg/kg)",
             ylabel = "Height (m)",
             title = "QL and QI (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         plot!(data_simul_ql_env, z_simul, label = "Environment liq", color = :green, linestyle = :dash) # add simulation data to same plot
         plot!(data_simul_qi_up, z_simul, label = "Updraft ice", color = :blue) # add simulation data to same plot
@@ -846,7 +889,7 @@ for flight_number in flight_numbers
             xlabel = "T (K)",
             ylabel = "Height (m)",
             title = "Updraft and Environmental Temperature (K)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul_env, z_simul, label = "Environment", color = :blue) # add simulation data to same plot
         p_s = plot!(data_simul, z_simul, label = "Simulation", color = :brown, xlim = (250, 280)) # add simulation data to same plot
@@ -894,7 +937,7 @@ for flight_number in flight_numbers
             xlabel = "T (K)",
             ylabel = "Height (m)",
             title = "Updraft and Environmental Temperature (K)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul_env, z_simul, label = "Environment", color = :blue) # add simulation data to same plot
 
@@ -930,14 +973,13 @@ for flight_number in flight_numbers
             simul_data.group["profiles"]["qt_mean"][:, simul_ind] +
             simul_data.group["profiles"]["qs_mean"][:, simul_ind] +
             simul_data.group["profiles"]["qr_mean"][:, simul_ind]
-            
+
 
         data_simul_up = simul_data.group["profiles"]["updraft_qt"][:, simul_ind]
         data_simul_env = simul_data.group["profiles"]["env_qt"][:, simul_ind]
-        data_truth =
-            truth_data["QT"][:, truth_ind] ./ 1000 # + 
-            # truth_data["QS"][:, truth_ind] ./ 1000 +
-            # truth_data["QR"][:, truth_ind] ./ 1000
+        data_truth = truth_data["QT"][:, truth_ind] ./ 1000 # + 
+        # truth_data["QS"][:, truth_ind] ./ 1000 +
+        # truth_data["QR"][:, truth_ind] ./ 1000
 
         data_simul_start = simul_data.group["profiles"]["qt_mean"][:, 1]
         data_simul_up_start = simul_data.group["profiles"]["updraft_qt"][:, 1]
@@ -957,7 +999,7 @@ for flight_number in flight_numbers
             xlabel = "qt (kg/kg)",
             ylabel = "Height (m)",
             title = "QT (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :circle, markersize = 1.5) # add simulation data to same plot
         plot!(data_simul_up, z_simul, label = "Updraft", color = :red) # add simulation data to same plot
@@ -970,7 +1012,9 @@ for flight_number in flight_numbers
         plot!(data_simul_env_start, z_simul, label = "Environment start", color = :blue, linestyle = :dash) # add simulation data to same plot
 
 
-        data_simul_minus_cloud = simul_data.group["profiles"]["qt_mean"][:, simul_ind] - simul_data.group["profiles"]["qi_mean"][:, simul_ind] #- simul_data.group["profiles"]["qi_mean"][:, simul_ind]
+        data_simul_minus_cloud =
+            simul_data.group["profiles"]["qt_mean"][:, simul_ind] -
+            simul_data.group["profiles"]["qi_mean"][:, simul_ind] #- simul_data.group["profiles"]["qi_mean"][:, simul_ind]
         plot!(data_simul_minus_cloud, z_simul, label = "simul - cloud", color = :brown, linestyle = :dash) # add simulation data to same plot
 
         savefig(joinpath(outpath, "Figures", "qt_start_now.png")) # save to file
@@ -1001,11 +1045,10 @@ for flight_number in flight_numbers
             marker = :circle,
             markersize = 1.5,
             yflip = true,
-
             xlabel = "qt (kg/kg)",
             ylabel = "Height (m)",
             title = "QT (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_truth, p_truth_start, label = "Truth now", marker = :circle, markersize = 1.5)
 
@@ -1016,15 +1059,13 @@ for flight_number in flight_numbers
         # --------------------------------------------------------------------------------------------- #
         # ql start vs now
         data_simul = simul_data.group["profiles"]["ql_mean"][:, simul_ind]
-        data_simul_plus_precip =
-            simul_data.group["profiles"]["ql_mean"][:, simul_ind]
-            # simul_data.group["profies"]["qr_mean"][:, simul_ind]
+        data_simul_plus_precip = simul_data.group["profiles"]["ql_mean"][:, simul_ind]
+        # simul_data.group["profies"]["qr_mean"][:, simul_ind]
 
         data_simul_up = simul_data.group["profiles"]["updraft_ql"][:, simul_ind]
         data_simul_env = simul_data.group["profiles"]["env_ql"][:, simul_ind]
-        data_truth =
-            truth_data["QCL"][:, truth_ind] ./ 1000
-            # truth_data["QS"][:, truth_ind] ./ 1000 +
+        data_truth = truth_data["QCL"][:, truth_ind] ./ 1000
+        # truth_data["QS"][:, truth_ind] ./ 1000 +
 
         data_simul_start = simul_data.group["profiles"]["ql_mean"][:, 1]
         data_simul_up_start = simul_data.group["profiles"]["updraft_ql"][:, 1]
@@ -1044,7 +1085,7 @@ for flight_number in flight_numbers
             xlabel = "qt (kg/kg)",
             ylabel = "Height (m)",
             title = "QL (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :circle, markersize = 1.5) # add simulation data to same plot
         plot!(data_simul_up, z_simul, label = "Updraft", color = :red) # add simulation data to same plot
@@ -1085,7 +1126,7 @@ for flight_number in flight_numbers
             xlabel = "T (K)",
             ylabel = "Height (m)",
             title = "THETAL (kg/kg)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :circle, markersize = 1.5) # add simulation data to same plot
         plot!(data_simul_up, z_simul, label = "Updraft", color = :red) # add simulation data to same plot
@@ -1123,7 +1164,7 @@ for flight_number in flight_numbers
             xlabel = "T (k)",
             ylabel = "Height (m)",
             title = "Temperature (K)",
-            minorgrid = minorgrid
+            minorgrid = minorgrid,
         )
         p_s = plot!(data_simul, z_simul, label = "Simulation", marker = :circle, markersize = 1.5) # add simulation data to same plot
         plot!(data_simul_up, z_simul, label = "Updraft", color = :red) # add simulation data to same plot
@@ -1156,60 +1197,90 @@ for flight_number in flight_numbers
 
         # --------------------------------------------------------------------------------------------- #
 
-        
-    # rain snow (as a qt check)
-    data_simul_rain = simul_data.group["profiles"]["qr_mean"][:, simul_ind]
-    data_simul_snow = simul_data.group["profiles"]["qs_mean"][:, simul_ind]
-    data_truth_rain = truth_data["QR"][:, truth_ind] ./ 1000
-    data_truth_snow = truth_data["QS"][:, truth_ind] ./ 1000
 
-    p_t = plot(
-        data_truth_rain,
-        z_truth,
-        label = "Truth Rain",
-        legend = :bottomright,
-        dpi = dpi,
-        ylim = (ymin, ymaxs[flight_number]),
-        xlabel = "qr (kg/kg)",
-        ylabel = "Height (m)",
-        title = "QR (kg/kg)",
-        color = :green,
-        linestyle = :dash,
-        minorgrid = minorgrid
-    )
-    plot!(data_simul_rain, z_simul, label = "Simulation Rain", color = :lime)
-    plot!(data_truth_snow, z_truth, label = "Truth Snow", color = :blue, linestyle = :dash) # add simulation data to same plot
-    plot!(data_simul_snow, z_simul, label = "Simulation Snow", color = :cyan) # add simulation data to same plot
-    savefig(joinpath(outpath, "Figures", "qr_qs.png")) # save to file
-    
+        # rain snow (as a qt check)
+        data_simul_rain = simul_data.group["profiles"]["qr_mean"][:, simul_ind]
+        data_simul_snow = simul_data.group["profiles"]["qs_mean"][:, simul_ind]
+        data_truth_rain = truth_data["QR"][:, truth_ind] ./ 1000
+        data_truth_snow = truth_data["QS"][:, truth_ind] ./ 1000
 
-    # reference states p
-
-    p_truth = truth_data["PRES"][:, truth_ind]
-    p_truth_ref = truth_data["p"][:]
-
-    p_ref_simul = simul_data.group["reference"]["p_c"] / 100.
-    p_ref_simul_f = simul_data.group["reference"]["p_f"] / 100.
+        p_t = plot(
+            data_truth_rain,
+            z_truth,
+            label = "Truth Rain",
+            legend = :bottomright,
+            dpi = dpi,
+            ylim = (ymin, ymaxs[flight_number]),
+            xlabel = "qr (kg/kg)",
+            ylabel = "Height (m)",
+            title = "QR (kg/kg)",
+            color = :green,
+            linestyle = :dash,
+            minorgrid = minorgrid,
+        )
+        plot!(data_simul_rain, z_simul, label = "Simulation Rain", color = :lime)
+        plot!(data_truth_snow, z_truth, label = "Truth Snow", color = :blue, linestyle = :dash) # add simulation data to same plot
+        plot!(data_simul_snow, z_simul, label = "Simulation Snow", color = :cyan) # add simulation data to same plot
+        savefig(joinpath(outpath, "Figures", "qr_qs.png")) # save to file
 
 
-    p = plot(
-        p_truth,
-        z_truth,
-        label = "Truth",
-        legend = :topright,
-        dpi = dpi*4,
-        marker = :circle,
-        markersize = 0.5,
-        markerstrokewidth = 0.05,
-        xlabel = "Pressure (Pa)",
-        ylabel = "Height (m)",
-        title = "Pressure (Pa)",
-        minorgrid = minorgrid
-    )
-    plot!( p_truth_ref, z_truth, label = "Truth ref", dpi = dpi, marker = :circle, markersize = 0.25, markerstrokewidth = 0.05, linewidth=.1, color=:blue) # add simulation data to same plot
-    plot!( p_ref_simul, z_simul, label = "Simulation ref", dpi = dpi, marker = :circle, markersize = 0.25, markerstrokewidth = 0.05, linewidth=.1, color=:red) # add simulation data to same plot
-    plot!( p_ref_simul_f, z_simul_f, label = "Simulation ref f", dpi = dpi, marker = :circle, markersize = 0.25, markerstrokewidth = 0.05, linewidth=.1, color=:green) # add simulation data to same plot
-    savefig(joinpath(outpath, "Figures", "p.png")) # save to file
+        # reference states p
+
+        p_truth = truth_data["PRES"][:, truth_ind]
+        p_truth_ref = truth_data["p"][:]
+
+        p_ref_simul = simul_data.group["reference"]["p_c"] / 100.0
+        p_ref_simul_f = simul_data.group["reference"]["p_f"] / 100.0
+
+
+        p = plot(
+            p_truth,
+            z_truth,
+            label = "Truth",
+            legend = :topright,
+            dpi = dpi * 4,
+            marker = :circle,
+            markersize = 0.5,
+            markerstrokewidth = 0.05,
+            xlabel = "Pressure (Pa)",
+            ylabel = "Height (m)",
+            title = "Pressure (Pa)",
+            minorgrid = minorgrid,
+        )
+        plot!(
+            p_truth_ref,
+            z_truth,
+            label = "Truth ref",
+            dpi = dpi,
+            marker = :circle,
+            markersize = 0.25,
+            markerstrokewidth = 0.05,
+            linewidth = 0.1,
+            color = :blue,
+        ) # add simulation data to same plot
+        plot!(
+            p_ref_simul,
+            z_simul,
+            label = "Simulation ref",
+            dpi = dpi,
+            marker = :circle,
+            markersize = 0.25,
+            markerstrokewidth = 0.05,
+            linewidth = 0.1,
+            color = :red,
+        ) # add simulation data to same plot
+        plot!(
+            p_ref_simul_f,
+            z_simul_f,
+            label = "Simulation ref f",
+            dpi = dpi,
+            marker = :circle,
+            markersize = 0.25,
+            markerstrokewidth = 0.05,
+            linewidth = 0.1,
+            color = :green,
+        ) # add simulation data to same plot
+        savefig(joinpath(outpath, "Figures", "p.png")) # save to file
 
     end
 end

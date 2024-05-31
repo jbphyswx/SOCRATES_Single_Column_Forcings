@@ -126,7 +126,16 @@ end
 
 
 # function lev_to_z_from_LES_output_column(tsz, lesz, lesp; thermo_params, data, flight_number, forcing_type, interp_method = :Spline1D, interp_kwargs = Dict(:f_enhancement_factor=>1, :f_p_enhancement_factor=>1))
-function lev_to_z_from_LES_output_column(tsz, lesz, lesp; thermo_params, data, flight_number, forcing_type, interp_method = :Spline1D)
+function lev_to_z_from_LES_output_column(
+    tsz,
+    lesz,
+    lesp;
+    thermo_params,
+    data,
+    flight_number,
+    forcing_type,
+    interp_method = :Spline1D,
+)
     # Load pressure from the thermodynamic state
     p_in = TD.air_pressure.(thermo_params, tsz)
     # Interpolate z from the LES output to the pressure levels of the thermodynamic state
@@ -197,7 +206,7 @@ function lev_to_z_from_LES_output(
 
         # interpolate les output data to input times (instead of just choosing the `closest` hour like we did before... (need to apply by row)
         # p_LES = pyinterp(t_in, t_les, p_LES) # i think you need to map this bc of the splines... but there's probably some way...
-        p_LES = mapslices(x -> pyinterp(t_in, t_les, x, bc = "nearest", method=:Spline1D), p_LES; dims = 2) # apply to each row, use nearest interp but outside les time bounds is bogus
+        p_LES = mapslices(x -> pyinterp(t_in, t_les, x, bc = "nearest", method = :Spline1D), p_LES; dims = 2) # apply to each row, use nearest interp but outside les time bounds is bogus
 
         # for ts, tsz, interpolation is more annoying, maybe need to do in p,T,q separately and reconstitute?
         # tsz = combine_air_and_ground_data(ts, tsg, ldn; data, reshape_ground = true, insert_location = :end) # here we just want to assume monotonic so we can pass those to this fcn (no need to merge bc our column fcn isn't handling...)
@@ -599,7 +608,7 @@ function interp_along_dim(
     f_p_enhancement_factor = get(interp_kwargs, :f_p_enhancement_factor, 1) # default to 1.0
     bc = get(interp_kwargs, :bc, "error") # default to nearest
     k = get(interp_kwargs, :k, 1) # default to 3
-    
+
 
 
     # if data is a string, read the data out from data (creates data `vardata` from `var` whether var is string or already is data)
@@ -617,9 +626,36 @@ function interp_along_dim(
     # mapslices to apply along timedim, see https://docs.julialang.org/en/v1/base/arrays/#Base.mapslices
     if !interp_dim_in_is_full_array
         if isnothing(interp_dim_out)
-            return mapslices(d -> dd -> pyinterp(dd, interp_dim_in, d; method=interp_method, f_enhancement_factor=f_enhancement_factor, f_p_enhancement_factor=f_p_enhancement_factor, bc=bc, k=k), vardata, dims = [interp_dim_num]) # will return a lambda fcn that can be evaluated along that dimensoin
+            return mapslices(
+                d ->
+                    dd -> pyinterp(
+                        dd,
+                        interp_dim_in,
+                        d;
+                        method = interp_method,
+                        f_enhancement_factor = f_enhancement_factor,
+                        f_p_enhancement_factor = f_p_enhancement_factor,
+                        bc = bc,
+                        k = k,
+                    ),
+                vardata,
+                dims = [interp_dim_num],
+            ) # will return a lambda fcn that can be evaluated along that dimensoin
         else
-            return mapslices(d -> pyinterp(interp_dim_out, interp_dim_in, d; method=interp_method, f_enhancement_factor=f_enhancement_factor, f_p_enhancement_factor=f_p_enhancement_factor, bc=bc, k=k), vardata, dims = [interp_dim_num]) # lambda fcn will evaluate
+            return mapslices(
+                d -> pyinterp(
+                    interp_dim_out,
+                    interp_dim_in,
+                    d;
+                    method = interp_method,
+                    f_enhancement_factor = f_enhancement_factor,
+                    f_p_enhancement_factor = f_p_enhancement_factor,
+                    bc = bc,
+                    k = k,
+                ),
+                vardata,
+                dims = [interp_dim_num],
+            ) # lambda fcn will evaluate
         end
     else # vectorize over input dim values as well as data (no support for vectorize over output dim yet)
         # stack on new catd dimension, then split apart inside the fcn call
@@ -627,12 +663,39 @@ function interp_along_dim(
         _input = cat(interp_dim_in, vardata; dims = catd) # although maybe the input is just a vector in which case this won't work..... we could just pass it in
         if isnothing(interp_dim_out)
             return dropdims(
-                mapslices(d -> dd -> pyinterp(dd, d[:, 1], d[:, 2,]; method=interp_method, f_enhancement_factor=f_enhancement_factor, f_p_enhancement_factor=f_p_enhancement_factor, bc=bc, k=k), _input, dims = [interp_dim_num, catd]);
+                mapslices(
+                    d ->
+                        dd -> pyinterp(
+                            dd,
+                            d[:, 1],
+                            d[:, 2];
+                            method = interp_method,
+                            f_enhancement_factor = f_enhancement_factor,
+                            f_p_enhancement_factor = f_p_enhancement_factor,
+                            bc = bc,
+                            k = k,
+                        ),
+                    _input,
+                    dims = [interp_dim_num, catd],
+                );
                 dims = catd,
             ) # wll return a lambda fcn that can be evaluated along that dimensoin
         else
             return dropdims(
-                mapslices(d -> pyinterp(interp_dim_out, d[:, 1], d[:, 2]; method=interp_method, f_enhancement_factor=f_enhancement_factor, f_p_enhancement_factor=f_p_enhancement_factor, bc=bc, k=k), _input, dims = [interp_dim_num, catd]);
+                mapslices(
+                    d -> pyinterp(
+                        interp_dim_out,
+                        d[:, 1],
+                        d[:, 2];
+                        method = interp_method,
+                        f_enhancement_factor = f_enhancement_factor,
+                        f_p_enhancement_factor = f_p_enhancement_factor,
+                        bc = bc,
+                        k = k,
+                    ),
+                    _input,
+                    dims = [interp_dim_num, catd],
+                );
                 dims = catd,
             ) # lambda fcn will evaluate
         end
@@ -784,9 +847,25 @@ function get_data_new_z_t(
 
     # interpolate to new z
     if interp_method ∈ [:Spline1D, :Dierckx]
-        vardata = var_to_new_coord(vardata, z_old, z_dim_num; coord_new = z_new, data = data, interp_method=interp_method, interp_kwargs=Spline1D_interp_kwargs)
+        vardata = var_to_new_coord(
+            vardata,
+            z_old,
+            z_dim_num;
+            coord_new = z_new,
+            data = data,
+            interp_method = interp_method,
+            interp_kwargs = Spline1D_interp_kwargs,
+        )
     elseif interp_method ∈ [:pchip_smooth_derivative, :pchip_smooth]
-        vardata = var_to_new_coord(vardata, z_old, z_dim_num; coord_new = z_new, data = data, interp_method=interp_method, interp_kwargs=pchip_interp_kwargs)
+        vardata = var_to_new_coord(
+            vardata,
+            z_old,
+            z_dim_num;
+            coord_new = z_new,
+            data = data,
+            interp_method = interp_method,
+            interp_kwargs = pchip_interp_kwargs,
+        )
     else
         error("unsupported interpolation method")
     end
@@ -844,7 +923,7 @@ It seems that Atlas's simulations have a slight kink at the lowest level, but ot
     - in that case, we should be able to just use pyinterp because Spline1D default bc is nearest outside the range
 """
 # function calc_qg(Tg,pg; thermo_params)
-function calc_qg_extrapolate_pq(pg, p, q; interp_method=:Spline1D, interp_kawrgs...)
+function calc_qg_extrapolate_pq(pg, p, q; interp_method = :Spline1D, interp_kawrgs...)
     # pvg           = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
     # molmass_ratio = TDP.molmass_ratio(thermo_params)
     # qg            = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation [ add source ]
