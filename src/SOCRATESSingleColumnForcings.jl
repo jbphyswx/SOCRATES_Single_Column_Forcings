@@ -22,5 +22,8 @@ include("open_atlas_les_inputs.jl")
 include("open_atlas_les_outputs.jl")
 include("helper_functions.jl")
 include("process_case.jl")
+# include("interpolating_methods.jl") # currently only helper_functions.jl reads these
+# include("les_reader_helper.jl") # currently only helper_functions.jl reads these
+include("get_LES_reference_profiles.jl")
 
 end

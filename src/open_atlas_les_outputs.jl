@@ -53,6 +53,7 @@ function open_atlas_les_output(flight_number::Int)
     try  # obs
         # obs_data = NC.Dataset(obs_filename,"r") do ds; ds; end
         obs_data = NC.Dataset(obs_filename, "r")
+        grid_data = obs_data["z"][:] # read here cause no grid file
     catch e
         @warn e
         obs_data = nothing
@@ -60,16 +61,10 @@ function open_atlas_les_output(flight_number::Int)
 
     try  # ERA5
         ERA5_data = NC.Dataset(ERA5_filename, "r")
+        grid_data = ERA5_data["z"][:] # read here cause no grid file
     catch e
         @warn e
         ERA5_data = nothing
-    end
-
-    try  # grid
-        grid_data = vec(readdlm(grid_filename, FT)) # is a txt file...
-    catch e
-        @warn e
-        grid_data = nothing
     end
 
     return (; obs_data = obs_data, ERA5_data = ERA5_data, grid_data = grid_data)

@@ -18,28 +18,32 @@ Some things are always forced by ERA5, otherwise we pull from whatever obs_or_ER
 function process_case(
     flight_number::Int;
     obs_or_ERA5 = "Obs"::Union{String, Symbol},
-    new_z::Union{Nothing, AbstractArray} = nothing,
+    new_z::Union{Nothing, AbstractArray, NamedTuple} = nothing,
     initial_condition::Bool = false,
     thermo_params,
     surface = nothing,
-    use_LES_output_for_z = true,
+    use_LES_output_for_z = false,
+    return_old_z = false,
 )
-
-    ##### ALL OUR combine_air_and_ground_data calls need to be retrofitted to actually account for where the ground is! ######
-
-    ## Plan -- create a stored variable "combine_z_dim" or something like that that you can pass around that tells you where to insert the values from ground into the full array in combine_air_and_ground data -- and some argument that uses that variable to supplant other options (or make another func?)
 
     # initial conditions
     data = open_atlas_les_input(flight_number)
 
+    # get the new grid we want from the atlas les grid file
+    return_values = (:dTdt_hadv, :H_nudge, :dqtdt_hadv, :qt_nudge, :subsidence, :u_nudge, :v_nudge, :ug_nudge, :vg_nudge, :dTdt_rad)
     if isnothing(new_z)
         new_z = data[:grid_data]
+        # named tuple repeated for each in return values
+        new_z = NamedTuple{return_values}((new_z, new_z, new_z, new_z, new_z, new_z, new_z, new_z, new_z, new_z))
+    elseif isa(new_z, AbstractArray)
+        new_z = NamedTuple{return_values}((new_z, new_z, new_z, new_z, new_z, new_z, new_z, new_z, new_z, new_z))
     end
 
-
+    # resolve forcing keyword
     if obs_or_ERA5 ∈ ["Obs", :obs_data]
         forcing = :obs_data
-        data = data[(:obs_data, :ERA5_data)]
+        # data = data[(:obs_data, :ERA5_data)]
+        data = data[(:obs_data,)] # drop ERA if we're doing obs cause we don't need it (11 has no obs either i think)        
     elseif obs_or_ERA5 ∈ ["ERA5", :ERA5_data]
         forcing = :ERA5_data
         data = data[(:ERA5_data,)] # drop obs if we're doing era5 cause we don't need it (11 has no obs either i think)        
@@ -51,16 +55,14 @@ function process_case(
         end
     end
 
-    # @show(obs_or_ERA5)
-
     # specify our action dimensions
     z_dim_num = get_dim_num("lev", data[forcing]["T"])
     time_dim_num = get_dim_num("time", data[forcing]["T"])
 
-    # We use map here on individual variables mostly as many of them are no longer constituent variables of data so we must construct fcns with them separately
+    # We use map here a lot to map over all forcings in our data, but that could maybe be deprecated if we stop carrying it around as a named tuple
 
     ## For surface values, adjust to the time period of interest and return only the surface values, these are called in TC.jl
-    if ~isnothing(surface) #(is always ERA5) -- maybe not, doesn't seem so in ATLAS LES outputs
+    if ~isnothing(surface)
         initial_ind = get_initial_ind(data[forcing], flight_number) # should the reference be the first timestep? or what is the reference meant to be...
         summary_file = joinpath(dirname(@__DIR__), "Data", "SOCRATES_summary.nc")
         SOCRATES_summary = NC.Dataset(summary_file, "r")
@@ -82,7 +84,7 @@ function process_case(
             return TD.PhaseEquil_pTq(thermo_params, pg, Tg, qg)
         elseif surface ∈ ["surface_conditions", "conditions", "cond"]
             pg = vec(data[forcing]["Ps"])[:][initial_ind:end]
-            Tg_orig = vec(data[forcing]["Tg"])[:][initial_ind:end]
+            Tg_orig = vec(data[forcing]["Tg"])[:][initial_ind:end] # SST
             Tg = Tg_orig .+ Tg_offset # might have to drop lon,lat dims or sum
             # before we were extrapolating to surface to get qg which looks ok at first but after ts 1, the LES diverges, maybe it's supposed to be going towards Tg SST
             if Tg_offset < 0  # SST > Tg, assume SST sets qg at ground level going forward and serves as a source (so use full Tg not Tg_orig)
@@ -99,9 +101,9 @@ function process_case(
             tg = tg .- tg[1] # i think we need this to get the initial time to be 0, so the interpolation works
             # in this interpolation, tsec has to be adjusted to our offsets no? or we clip e.g. pg to be pg[initial_ind:end], tsec would also need to be adjusted no?, subtract the value at initial_ind i guess...
             return (;
-                pg = t -> pyinterp([t], tg, pg)[1],
-                Tg = t -> pyinterp([t], tg, Tg)[1],
-                qg = t -> pyinterp([t], tg, qg)[1],
+                pg = t -> pyinterp([t], tg, pg; method=:Spline1D)[1], # in time always use spline1d rn...
+                Tg = t -> pyinterp([t], tg, Tg; method=:Spline1D)[1],
+                qg = t -> pyinterp([t], tg, qg; method=:Spline1D)[1],
             ) # would use ref and broadcast but doesnt convert back to array
         else
             error(
@@ -152,28 +154,15 @@ function process_case(
     end
 
     # Set up thermodynamic states for easier use (for both forcing and ERA -- note ERA subsidence for example depends on density which relies on T,p,q so need both even if forcing is :obs_data)
-    # ts      = map((p,T,q)->TD.PhaseEquil_pTq.(thermo_params, p , T , q ), p,T,q)
     tsg = map((pg, Tg, qg) -> TD.PhaseEquil_pTq.(thermo_params, pg, Tg, qg), pg, Tg, qg)
 
-    #=
-     I believe we can get from T_L to something better
-    In principle at initiation they assume domination by liquid, so T_l,i ≈ T_l
-    We are given in the forcing files T_L = T - L q_c/ c_p, 
-    Then, θ_L,I ≈ θ_L = θ - θ\T L q_c/ c_p = (θ/T) ( T - L q_c/ c_p) = (θ/T) T_L
-    thus θ_L = T_L (p_0/p)^k, where k = R_d/c_p
-    In principle this is the same as just calculating the dry potential temperature subsitututing T_L for t (not sure if to include q in the calculation of θ or no, in priciple it's needed for R\c_p so I'll do it as a phase partition of all vapor right now)
-    I think for the surface we're fine because they gave us real temperature...
-    This I hope solves the issue where our qt is right but q_l and T are wrong
-    =#
-    θ = map((T, p, q) -> TD.dry_pottemp_given_pressure.(thermo_params, T, p, TD.PhasePartition.(q)), T, p, q)
-    ts = map((p, θ, q) -> TD.PhaseEquil_pθq.(thermo_params, p, θ, q), p, θ, q)
-    # tsg     = map((pg,Tg,qg)->TD.PhaseEquil_pθq.(thermo_params, pg , Tg , qg ), pg,Tg,qg)
+    # In principle at initiation they assume domination by liquid, so T_l,i ≈ T_l. We are given in the forcing files T_L = T - L q_c/ c_p. Then, θ_L,I ≈ θ_L = θ - θ\T L q_c/ c_p = (θ/T) ( T - L q_c/ c_p) = (θ/T) T_L thus θ_L = T_L (p_0/p)^k, the same as just calculating the dry potential temperature subsitututing T_L
+    θ = map((T, p,) -> TD.dry_pottemp_given_pressure.(thermo_params, T, p), T, p) # should be same as # θ = map((T, p, q) -> TD.dry_pottemp_given_pressure.(thermo_params, T, p, TD.PhasePartition.(q)), T, p, q)
 
+    ts = map((p, θ, q) -> TD.PhaseEquil_pθq.(thermo_params, p, θ, q), p, θ, q)
 
     # get indices where the ground would get inserted in... (and convert to same shape/dims.)
-    ground_indices =
-        map((ts) -> get_ground_insertion_indices(ts, tsg[forcing], z_dim_num; thermo_params, data = data), ts) # always use ERA5 surface...
-    # @show(ground_indices, map(size,ground_indices))
+    ground_indices = map((ts) -> get_ground_insertion_indices(ts, tsg[forcing], z_dim_num; thermo_params, data = data), ts) # 
 
     q_full = combine_air_and_ground_data(q[forcing], qg[forcing], z_dim_num; insert_location = ground_indices[forcing]) # full q_array/qt_nudge -- is used from the chosen forcing dataset
     qt_nudge = q_full
@@ -189,7 +178,6 @@ function process_case(
     # SHOULD THESE NOT USE THE GROUND_INDICES INSERT LOCATIONS???? and/or ts_full
 
     # old_z  => Precompute old z coordinate (precompute to save us some trouble later (get_data_new_z_t func can self-calculate it but it's redundant to keep calculating z)
-    # z_old = map((ts,tsg,data)->lev_to_z( ts,tsg; thermo_params, data=data) , ts,tsg, data) # should this be tsg[:ERA5_data] cause surface is always ERA5
     if !use_LES_output_for_z
         z_old = map((ts, data) -> lev_to_z(ts, tsg[forcing]; thermo_params, data = data), ts, data) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) 
     else
@@ -209,6 +197,9 @@ function process_case(
         ) # should this be tsg[:ERA5_data] cause surface is always ERA5 (is it?) [ + Testing getting z from the forcing data ]
     end
 
+    if return_old_z
+        return z_old
+    end
 
 
     # ω (subsidence) # always forced by era5
@@ -240,34 +231,31 @@ function process_case(
     L = 2.2 # maximum value (shape parameter)
     a = -L / 2
     p0 = 250.0 * 100
-    # @show( pg[:ERA5_data][:], size( pg[:ERA5_data][:]) )
     p1 = add_dim(pg[forcing][:], z_dim_num)
-    # @show(p1, size(p1))
     (p1, y1) = (p1, 1) # use our ground pressure (can't use pfull cause would need to pull)
     (p2, y2) = (p0, 0)
     k = @. log((L / 2 + 1) / (L / 2 - 1)) / (p1 - p0) # ps is an array so we have an array of ks
     f_p = @. cos(π / 2 * (p1 - p_full[forcing]) / (p1 - p0)) * (p_full[forcing] >= p0) # atlas email
-    # @show(squeeze(k),size(k))
-    # @show(size(p_full))
     f_p_alt = @. (a + L / (1 + exp(-k * (p_full[forcing] - p0)))) * (p_full[forcing] >= p0) # my original
 
-    # @info(squeeze(Statistics.mean(p_full[forcing], dims = time_dim_num)))
-    # @info(squeeze(Statistics.mean(f_p, dims = time_dim_num)))
 
 
     grav = TDP.grav(thermo_params)
-    # @show(size(f_p), size(ω), size(ρ))
     subsidence = -(ω .- (dpdt_g .* f_p)) ./ (ρ .* grav)
 
 
-    # @show(minimum(subsidence), maximum(subsidence))
+    # maybe it's an upwinding thing? what if we turn off ascent within 3 indices of either edge
+    # subsidence_buffer = 0
+    # nz = size(subsidence, z_dim_num)
+    # valid_subsidence = align_along_dimension(1:nz, z_dim_num)
+    # valid_subsidence = (valid_subsidence .> subsidence_buffer) .& (valid_subsidence .<= (nz - subsidence_buffer))
+    # subsidence = subsidence .* (subsidence .>0) + subsidence .* (subsidence .<0) .* valid_subsidence # remove any ascent near boundaries to test if that is more stable...
+
     # subsidence = max.(subsidence,0)  # stability test (unstable) (all ascent)
-    subsidence = min.(subsidence, 0)  # stability test (stable!) ( all subsidence ) # testing getting rid of this to see if the stability problem had been fixed elsewhere (it hasn't lol, tested)
+    # subsidence = min.(subsidence, 0)  # stability test (stable!) ( all subsidence ) # testing getting rid of this to see if the stability problem had been fixed elsewhere (it hasn't lol, tested)
     # m = .007 # almost stable .005 | unstable .007
     # subsidence[subsidence .> m] .= m # stability test -- can we tolerate any ascent?
 
-    # @show(squeeze(ω)', squeeze(f_p)' )
-    # @show(squeeze(subsidence)',squeeze(p_full)')
 
     # u, v # always forced by ERA5
     u = data[forcing]["u"]
@@ -294,7 +282,7 @@ function process_case(
     # H (nudge)
     θ_liq_ice = TD.liquid_ice_pottemp.(thermo_params, ts_full[forcing])
     H_nudge = θ_liq_ice
-
+   
 
     # dTdt_hadv (i think these are supposed to be always ERA5)
     dTdt_hadv = data[forcing]["divT"]
@@ -305,9 +293,31 @@ function process_case(
     dqtdt_hadv = combine_air_and_ground_data(dqtdt_hadv, FT(0), z_dim_num; insert_location = ground_indices[forcing])
     # expand everything to new z grid and make t operation (initial condition or time splines)
     # dTdt_hadv  = get_data_new_z_t(dTdt_hadv , new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
+
+    # ======================================================================================================================== #
+    LES_data = open_atlas_les_output(flight_number)[forcing]
+    dTdt_rad = LES_data["RADQR"] ./ (24 * 3600) # convert to K/s from K/day (dividing drops nc dim data tho but converts it to array from ncvariable)
+
+    z_dim_num_LES = get_dim_num("z", LES_data["RADQR"]) # assume it's same for all LES 2D vars?
+    time_dim_num_LES = get_dim_num("time", LES_data["RADQR"])
+    
+    dTdt_rad = get_data_new_z_t_LES(
+        dTdt_rad,
+        new_z[:dTdt_rad],
+        z_dim_num_LES,
+        time_dim_num_LES,
+        flight_number;
+        z_old = nothing,
+        data = LES_data,
+        thermo_params,
+        initial_condition,
+    )[:]
+
+    # ======================================================================================================================== #
+
     dTdt_hadv = get_data_new_z_t(
-        dTdt_hadv .* (forcing == :ERA5_data),
-        new_z,
+        dTdt_hadv ,#.* (forcing == :ERA5_data),
+        new_z[:dTdt_hadv],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -315,10 +325,11 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    )  # testing not using forcing for obs to see if fixes anything
+    )[:]  # testing not using forcing for obs to see if fixes anything
+
     H_nudge = get_data_new_z_t(
         H_nudge,
-        new_z,
+        new_z[:H_nudge],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -326,11 +337,17 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    )
+        # interp_method = :pchip_smooth, # testing if this is the one that breaks things
+        interp_method = :Spline1D,
+        pchip_interp_kwargs = Dict(
+            :f_enhancement_factor => 5, # higher to keep sharp inversions
+            :f_p_enhancement_factor => 8),  # not too high to avoid cusps (changed to high to keep model fidelity)
+    )[:]
+
     # dqtdt_hadv = get_data_new_z_t(dqtdt_hadv, new_z, z_dim_num,time_dim_num, flight_number; z_old = z_old[forcing], data=data[forcing], thermo_params,  initial_condition)
     dqtdt_hadv = get_data_new_z_t(
-        dqtdt_hadv .* (forcing == :ERA5_data),
-        new_z,
+        dqtdt_hadv ,#.* (forcing == :ERA5_data),
+        new_z[:dqtdt_hadv],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -338,10 +355,11 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    ) # testing not using forcing for obs to see if fixes anything
+    )[:] # testing not using forcing for obs to see if fixes anything
+
     qt_nudge = get_data_new_z_t(
         qt_nudge,
-        new_z,
+        new_z[:qt_nudge],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -349,10 +367,16 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    )
+        # interp_method = :pchip_smooth,
+        interp_method = :Spline1D,
+        pchip_interp_kwargs = Dict(
+            :f_enhancement_factor => 6, # higher to keep sharp inversions
+            :f_p_enhancement_factor => 8),  # not too high to avoid cusps
+    )[:]
+
     subsidence = get_data_new_z_t(
         subsidence,
-        new_z,
+        new_z[:subsidence],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -360,10 +384,16 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    )
+        interp_method = :Spline1D, # verifying if this is still unstable
+        # interp_method = :pchip_smooth,
+        pchip_interp_kwargs = Dict(
+            :f_enhancement_factor => 1, # lower for gentle changes and no sharp convergence/divergence, loss of accuracy ok
+            :f_p_enhancement_factor => 1),  # lower for gentle changes and no sharp convergence/divergence, loss of accuraacy ok
+    )[:]
+
     u_nudge = get_data_new_z_t(
         u_nudge,
-        new_z,
+        new_z[:u_nudge],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -371,10 +401,11 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    )
+    )[:]
+
     v_nudge = get_data_new_z_t(
         v_nudge,
-        new_z,
+        new_z[:v_nudge],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -382,11 +413,11 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    )
+    )[:]
 
     ug_nudge = get_data_new_z_t(
         ug_nudge,
-        new_z,
+        new_z[:ug_nudge],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -394,10 +425,10 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    )
+    )[:]
     vg_nudge = get_data_new_z_t(
         vg_nudge,
-        new_z,
+        new_z[:vg_nudge],
         z_dim_num,
         time_dim_num,
         flight_number;
@@ -405,9 +436,9 @@ function process_case(
         data = data[forcing],
         thermo_params,
         initial_condition,
-    )
+    )[:]
 
-    return (; dTdt_hadv, H_nudge, dqtdt_hadv, qt_nudge, subsidence, u_nudge, v_nudge, ug_nudge, vg_nudge)
+    return (; dTdt_hadv, H_nudge, dqtdt_hadv, qt_nudge, subsidence, u_nudge, v_nudge, ug_nudge, vg_nudge, dTdt_rad)
 
 end
 
