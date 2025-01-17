@@ -1,6 +1,6 @@
 # SOCRATESSingleColumnForcings
 
-This repository includes scripts to take in SOCRATES flight data and create both 2D [lev,time] datasets and 1D [lev] columns of time-interpoloation functions to force the CliMa EDMF Turbulence-Convection single-column model.
+This repository includes scripts to take in SOCRATES flight data and create both 2D [lev,time] datasets and 1D [lev] columns of time-interpoloation functions to force the CliMA EDMF Turbulence-Convection single-column model.
 
 The profiles are created off the data used to force LES simulations by Atlas, 2020 (https://doi.org/10.1029/2020MS002205), some of her scripts are included in /Rachel_Atlas_Scripts.
 
@@ -27,4 +27,4 @@ The remainder of the properties are always taken from the ERA5 based Atlas input
 
 
 
-Once this is finalized, perhaps the relevant parts can be ported to `CliMa/AtmosphericProfilesLibrary.jl` (`CliMa/TurbulenceConvection.jl` as is doesn't access this repo)
+Once this is finalized, perhaps the relevant parts can be ported to `CliMA/AtmosphericProfilesLibrary.jl` (`CliMA/TurbulenceConvection.jl` as is doesn't access this repo)

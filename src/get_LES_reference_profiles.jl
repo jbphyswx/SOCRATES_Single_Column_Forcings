@@ -10,14 +10,16 @@ SAM seems to hold ρ constant with time, so we can probably just rely on that
 """
 function get_LES_reference_profiles(
     flight_number::Int;
-    obs_or_ERA5 = "Obs"::Union{String, Symbol},
+    forcing_type::Symbol = :obs_data,
     new_zc::Union{Nothing, AbstractArray} = nothing,
     new_zf::Union{Nothing, AbstractArray} = nothing,
     # thermo_params,
 )
 
+    (forcing_type ∈ (:obs_data, :ERA5_data)) || error("forcing_type must be :obs_data or :ERA5_data")
+
     # initial conditions
-    data = open_atlas_les_input(flight_number)
+    data = open_atlas_les_input(flight_number, forcing_type; open_files = true)
 
     return_values = (:p_c, :p_f, :ρ_c, :ρ_f)
 
@@ -42,24 +44,15 @@ function get_LES_reference_profiles(
         error("You must provide either new_zc or new_zf, or both, but only providing new_zc is not allowed")
     end
 
-    # resolve forcing keyword
-    if obs_or_ERA5 ∈ ["Obs", :obs_data]
-        forcing = :obs_data
-        # data = data[(:obs_data, :ERA5_data)]
-        data = data[(:obs_data,)] # drop ERA if we're doing obs cause we don't need it (11 has no obs either i think)        
-    elseif obs_or_ERA5 ∈ ["ERA5", :ERA5_data]
-        forcing = :ERA5_data
-        data = data[(:ERA5_data,)] # drop obs if we're doing era5 cause we don't need it (11 has no obs either i think)        
-    else
-        if obs_or_ERA5 ∉ [:obs_data, :ERA5_data, "Obs", "ERA5"]
-            error("obs_or_ERA5 must be either \"Obs\"/[:obs_data] or \"ERA5\"/[:ERA5_data]")
-        else
-            forcing = obs_or_ERA5
-        end
+    data = data[(forcing_type,)]
+
+
+    LES_data = open_atlas_les_output(flight_number, forcing_type)[forcing_type]
+
+    if isnothing(LES_data)
+        error("No LES data found for flight $flight_number")
     end
 
-
-    LES_data = open_atlas_les_output(flight_number)[forcing]
     z = LES_data["z"][:]
 
     p = LES_data["p"][:] .* 100.0 # Pressure variations in SAM are under a milibar, so we can use the 1D p variable rather than the 2D PRES variable

@@ -21,52 +21,72 @@ SOCRATES_flight_observations_Box_links = Dict( # The raw observational data from
 
 
 """
-open_atlas_les_output(flight_number::Int)
+open_atlas_les_output(flight_number::Int, forcing_type::Symbol; open_files::Bool = true, include_grid::Bool = true)
 
 opens the files downloaded in download_atlas_les_profiles.jl
 """
-function open_atlas_les_output(flight_number::Int)
+function open_atlas_les_output(
+    flight_number::Int,
+    forcing_type::Symbol;
+    open_files::Bool = true,
+    include_grid::Bool = true,
+)
+    FT = Float64 # idk how to pass on a type here without necessarily having to give a variable...
+    atlas_dir = joinpath(dirname(@__DIR__), "Data", "Atlas_LES_Profiles", "Output_Data") # doesn't seem to work to use @__DIR__ directly as a variable
+    RF_num = "RF" * string(flight_number, pad = 2)
+
+    if forcing_type == :obs_data
+        data_filename = joinpath(atlas_dir, RF_num * "_Obs_" * "SOCRATES_128x128_100m_10s_rad10_vg_M2005_aj.nc") # e.g. https://atmos.uw.edu/~ratlas/RF12_obs-based_SAM_input.nc
+    elseif forcing_type == :ERA5_data
+        data_filename = joinpath(atlas_dir, RF_num * "_ERA5_" * "SOCRATES_128x128_100m_10s_rad10_vg_M2005_aj.nc") # e.g. https://atmos.uw.edu/~ratlas/RF12_ERA5-based_SAM_input_mar18_2022.nc
+    else
+        error("forcing_type must be :obs_data or :ERA5_data")
+    end
+
+
+    # check if file exists and if not, download it
+    # The data is quite large so we'll try to load it from Box
+    if !isfile(data_filename)
+        download_atlas_les_outputs(; cases = [flight_number], forcing_type = forcing_type) # Atlas website
+    end
+
+
+    data = isfile(data_filename) ? (open_files ? NC.Dataset(data_filename, "r") : data_filename) : nothing
+
+    if include_grid
+        grid_filename = joinpath(atlas_dir, RF_num * "_grd.txt")
+        grid_data = isfile(grid_filename) ? (open_files ? vec(readdlm(grid_filename, FT)) : grid_filename) : nothing
+        return NamedTuple{(forcing_type, :grid_data)}((data, grid_data))
+    else
+        return NamedTuple{(forcing_type,)}((data,))
+    end
+end
+
+
+function open_atlas_les_output(flight_number::Int; open_files::Bool = true, include_grid::Bool = true)
     FT = Float64 # idk how to pass on a type here without necessarily having to give a variable...
     atlas_dir = joinpath(dirname(@__DIR__), "Data", "Atlas_LES_Profiles", "Output_Data") # doesn't seem to work to use @__DIR__ directly as a variable
     RF_num = "RF" * string(flight_number, pad = 2)
     obs_filename = joinpath(atlas_dir, RF_num * "_Obs_" * "SOCRATES_128x128_100m_10s_rad10_vg_M2005_aj.nc") # e.g. https://atmos.uw.edu/~ratlas/RF12_obs-based_SAM_input.nc
     ERA5_filename = joinpath(atlas_dir, RF_num * "_ERA5_" * "SOCRATES_128x128_100m_10s_rad10_vg_M2005_aj.nc") # e.g. https://atmos.uw.edu/~ratlas/RF12_ERA5-based_SAM_input_mar18_2022.nc
-    grid_filename = joinpath(atlas_dir, RF_num * "_grd.txt")
-
-    # @show(obs_filename, ERA5_filename, grid_filename)
 
     # check if file exists and if not, download it
+    # The data is quite large so we'll try to load it from Box
     if !isfile(obs_filename)
-        # download(SOCRATES_flight_observations_Box_links[flight_number], obs_filename) # box link
-        download_atlas_les_outputs(; cases = [flight_number]) # Atlas website
+        download_atlas_les_outputs(; cases = [flight_number], forcing_type = :obs_data) # Atlas website
     end
     if !isfile(ERA5_filename)
-        # download(SOCRATES_flight_observations_Box_links[flight_number], ERA5_filename) # box link
-        download_atlas_les_outputs(; cases = [flight_number]) # Atlas website
+        download_atlas_les_outputs(; cases = [flight_number], forcing_type = :ERA5_data) # Atlas website
     end
 
+    obs_data = isfile(obs_filename) ? (open_files ? NC.Dataset(obs_filename, "r") : obs_filename) : nothing
+    ERA5_data = isfile(ERA5_filename) ? (open_files ? NC.Dataset(ERA5_filename, "r") : ERA5_filename) : nothing
 
-    # The data is quite large so we'll try to load it from Box
-
-    local obs_data, ERA5_data, grid_data # initialize cause try catch scope is closed
-    # can't use do blocks here cause will close the files...
-    try  # obs
-        # obs_data = NC.Dataset(obs_filename,"r") do ds; ds; end
-        obs_data = NC.Dataset(obs_filename, "r")
-        grid_data = obs_data["z"][:] # read here cause no grid file
-    catch e
-        @warn e
-        obs_data = nothing
+    if include_grid
+        grid_filename = joinpath(atlas_dir, RF_num * "_grd.txt")
+        grid_data = isfile(grid_filename) ? (open_files ? vec(readdlm(grid_filename, FT)) : grid_filename) : nothing
+        return (; obs_data, ERA5_data, grid_data)
+    else
+        return (; obs_data, ERA5_data)
     end
-
-    try  # ERA5
-        ERA5_data = NC.Dataset(ERA5_filename, "r")
-        grid_data = ERA5_data["z"][:] # read here cause no grid file
-    catch e
-        @warn e
-        ERA5_data = nothing
-    end
-
-    return (; obs_data = obs_data, ERA5_data = ERA5_data, grid_data = grid_data)
-
 end

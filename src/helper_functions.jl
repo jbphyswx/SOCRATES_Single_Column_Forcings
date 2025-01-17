@@ -69,14 +69,14 @@ end
 
 Does this cause we don't have surface q values as of rn
 """
-function data_to_tsg(data; thermo_params)
+function data_to_tsg(data; thermo_params::TDPS)
 
     Tg = data["Tg"]
     pg = data["Ps"]
 
     # not sure what to do at surface, so assuming saturation at surface
     pvg = TD.saturation_vapor_pressure.(thermo_params, Tg, TD.Liquid())
-    molmass_ratio = TD.molmass_ratio(thermo_params)
+    molmass_ratio = TDP.molmass_ratio(thermo_params)
 
     qg = (1 / molmass_ratio) .* pvg ./ (pg .- pvg) #Total water mixing ratio at surface , assuming saturation
 
@@ -87,7 +87,7 @@ end
 """
     data_to_ts
 """
-function data_to_ts(data; do_combine_air_and_ground_data = false, thermo_params) # add type data is ncdataset
+function data_to_ts(data; do_combine_air_and_ground_data::Bool = false, thermo_params::TDPS) # add type data is ncdataset
 
     T = data["T"]
     q = data["q"]
@@ -107,17 +107,10 @@ function data_to_ts(data; do_combine_air_and_ground_data = false, thermo_params)
     return ts
 end
 
-
-function insert_sorted(vect, val; by = monotonic_checker, monotonic_rev = monotonic_rev)
-    # @show(vect,val)
-    index = searchsortedfirst(vect, val; by = monotonic_checker, rev = monotonic_rev) #find index at which to insert x
+function insert_sorted(vect, val; by = identity, rev = false)
+    index = searchsortedfirst(vect, val; by = by, rev = rev) #find index at which to insert x
     return insert!(vect, index, val) #insert x at index
 end
-
-# function insert_sorted(vect, val;by=monotonic_checker,monotonic_rev=monotonic_rev)
-#     index = searchsortedfirst(vect, val;  by=monotonic_checker, rev=monotonic_rev) #find index at which to insert x
-#     return insert!(vect, index, val) #insert x at index
-# end
 
 
 
@@ -127,15 +120,15 @@ end
 
 # function lev_to_z_from_LES_output_column(tsz, lesz, lesp; thermo_params, data, flight_number, forcing_type, interp_method = :Spline1D, interp_kwargs = Dict(:f_enhancement_factor=>1, :f_p_enhancement_factor=>1))
 function lev_to_z_from_LES_output_column(
-    tsz,
+    tsz::AbstractArray{TS},
     lesz,
     lesp;
-    thermo_params,
+    thermo_params::TDPS,
     data,
-    flight_number,
-    forcing_type,
-    interp_method = :Spline1D,
-)
+    flight_number::Int,
+    forcing_type::Symbol,
+    interp_method::Symbol = :Spline1D,
+) where {TS <: TDTS}
     # Load pressure from the thermodynamic state
     p_in = TD.air_pressure.(thermo_params, tsz)
     # Interpolate z from the LES output to the pressure levels of the thermodynamic state
@@ -152,11 +145,11 @@ We only have the forcing data at that scale so...
 function lev_to_z_from_LES_output(
     ts,
     tsg;
-    thermo_params,
+    thermo_params::TDPS,
     data,
-    assume_monotonic = false,
-    flight_number,
-    forcing_type,
+    assume_monotonic::Bool = false,
+    flight_number::Int,
+    forcing_type::Symbol,
     ground_indices = nothing,
 )
 
@@ -170,7 +163,7 @@ function lev_to_z_from_LES_output(
     Lt = size(ts, time_dim_num)
 
     if !assume_monotonic
-        LES_data = open_atlas_les_output(flight_number)[forcing_type]
+        LES_data = open_atlas_les_output(flight_number, forcing_type)[forcing_type]
         p_LES = LES_data["PRES"] # 2D,time varying
         z_LES = LES_data["z"] # 1D, constant
         # LES_min_z, LES_max_z = extrema(z_LES)
@@ -208,12 +201,9 @@ function lev_to_z_from_LES_output(
         # p_LES = pyinterp(t_in, t_les, p_LES) # i think you need to map this bc of the splines... but there's probably some way...
         p_LES = mapslices(x -> pyinterp(t_in, t_les, x, bc = "nearest", method = :Spline1D), p_LES; dims = 2) # apply to each row, use nearest interp but outside les time bounds is bogus
 
-        # for ts, tsz, interpolation is more annoying, maybe need to do in p,T,q separately and reconstitute?
-        # tsz = combine_air_and_ground_data(ts, tsg, ldn; data, reshape_ground = true, insert_location = :end) # here we just want to assume monotonic so we can pass those to this fcn (no need to merge bc our column fcn isn't handling...)
         tsz = ts
 
         # preallocate z
-        # z = zeros(Float64, size(tsz)...) # should be same size as ts
         s_tsz = collect(size(ts))
         s_tsz[ldn] += 1 # we just want to add a single slice of zeros for the ground -- these are all ocean cases so this should be fine for now...
         z = Array{Float64}(undef, s_tsz...) # should be same size as ts
@@ -278,7 +268,7 @@ function lev_to_z_from_LES_output(
 
 
             # Handle z's lower than LES Data (highest pressure to sfc) | use the thickness equation
-            new_z = lev_to_z_column(tsz_t[i_t_max_p:end]; thermo_params, data)
+            new_z = lev_to_z_column(tsz_t[i_t_max_p:end]; thermo_params)
             new_dz = new_z[2:end] .- new_z[1:(end - 1)] # get the dz from the thickness equation, but instead of going up from the ground, we're gonna flip it to go down from the last good z
             new_dz = cumsum(new_dz) # sum up our dz
             new_z = selectdim(z, tdn, i_t)[i_t_max_p] .+ new_dz
@@ -288,7 +278,7 @@ function lev_to_z_from_LES_output(
 
             # Handle z's higher than LES Data | use the thickness equation and add to the top of the LES data
             selectdim(z, tdn, i_t)[1:(i_t_min_p - 1)] =
-                lev_to_z_column(tsz_t[1:i_t_min_p]; thermo_params, data)[1:(end - 1)] .+ z[i_t_min_p] # go from start to top and add to existing top...
+                lev_to_z_column(tsz_t[1:i_t_min_p]; thermo_params)[1:(end - 1)] .+ z[i_t_min_p] # go from start to top and add to existing top...
 
 
             selectdim(z, tdn, i_t)[:] .-= selectdim(z, tdn, i_t)[index] # subtract out the ground value
@@ -312,15 +302,13 @@ tsz should be a one dimensional array consising of [ts..., tg]
 
 # to do -- add capability to use precomputed indices (insert_location)
 """
-function lev_to_z_column(tsz; thermo_params, data = data)
+function lev_to_z_column(tsz; thermo_params::TDPS)
 
     ts = tsz[1:(end - 1)] # need to make it a vector I guess... (not sure if this screws wit output shape)
     tsg = tsz[end]
     R_d = TDP.R_d(thermo_params)
     grav = TDP.grav(thermo_params)
 
-    # dimnames    = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
-    # lev_dim_num = findfirst(x->x=="lev",dimnames)
     L = length(ts)
 
     index = searchsortedfirst(ts, tsg; by = x -> TD.air_pressure(thermo_params, x), rev = false) # find where the ground value would be inserted...
@@ -350,9 +338,9 @@ end
 
 TODO: document
 """
-function lev_to_z(p::FT, T::FT, q::FT, pg::FT, Tg::FT, qg::FT; thermo_params, data) where {FT <: Real}
+function lev_to_z(p::FT, T::FT, q::FT, pg::FT, Tg::FT, qg::FT; thermo_params::TDPS, data) where {FT <: Real}
     ts = TD.PhaseEquil_pTq.(thermo_params, p, T, q)
-    tsg = TD.PhaseEquil_pTq.(thermo_params, pg, Tg, qtg)
+    tsg = TD.PhaseEquil_pTq.(thermo_params, pg, Tg, qg)
     return lev_to_z(ts, tsg; data = data, thermo_params)
 end
 
@@ -365,7 +353,13 @@ tsg is thermodynamic state for ground
 
 if assume monotonic, everything should already be in the right order and we can use the vectorized version, otherwise we will use lev_to_z column applied column by column w/ mapslices
 """
-function lev_to_z(ts, tsg; thermo_params, data, assume_monotonic = false)
+function lev_to_z(
+    ts::AbstractArray{TS},
+    tsg::AbstractArray{TS};
+    thermo_params::TDPS,
+    data,
+    assume_monotonic::Bool = false,
+) where {TS <: TDTS}
 
     dimnames = NC.dimnames(data["T"]) # use this as default cause calculating ts doesn't maintain dim labellings
     lev_dim_num = findfirst(x -> x == "lev", dimnames)
@@ -374,7 +368,7 @@ function lev_to_z(ts, tsg; thermo_params, data, assume_monotonic = false)
 
     if !assume_monotonic
         tsz = combine_air_and_ground_data(ts, tsg, ldn; data, reshape_ground = true, insert_location = :end) # here we just want to assume monotonic so we can pass those to this fcn
-        z = mapslices(x -> lev_to_z_column(x; thermo_params, data), tsz; dims = ldn) # need to make a stack cause that's all mapslices can take...
+        z = mapslices(x -> lev_to_z_column(x; thermo_params), tsz; dims = ldn) # need to make a stack cause that's all mapslices can take...
     else
 
         R_d = TDP.R_d(thermo_params) # TD.Parameters.R_d(thermo_params)
@@ -408,7 +402,7 @@ function lev_to_z(ts, tsg; thermo_params, data, assume_monotonic = false)
     return z
 end
 
-function z_from_data(data; thermo_params)
+function z_from_data(data; thermo_params::TDPS)
     ts = data_to_ts(data; thermo_params, do_combine_air_and_ground_data = false)
     tsg = data_to_tsg(data; thermo_params)
     return lev_to_z(ts, tsg; thermo_params, data)
@@ -420,7 +414,13 @@ end
 
 Get the indices where the ground tsg would fit into the array ts...
 """
-function get_ground_insertion_indices(ts, tsg, concat_dim; thermo_params, data = data)
+function get_ground_insertion_indices(
+    ts::AbstractArray{TS},
+    tsg::AbstractArray{TS},
+    concat_dim::Union{Int, String};
+    thermo_params::TDPS,
+    data,
+) where {TS <: TDTS}
     function mapslice_func(vect; thermo_params = thermo_params, by = x -> TD.air_pressure(thermo_params, x))
         vardata = vect[1:(end - 1)]
         vardatag = vect[end]
@@ -455,12 +455,12 @@ assume_monotonic : assume that the ground value is actually below everything in 
 function combine_air_and_ground_data(
     var,
     varg,
-    concat_dim;
+    concat_dim::Union{Int, String};
     data = nothing,
-    reshape_ground = true,
-    insert_location = :end,
+    reshape_ground::Bool = true,
+    insert_location::Union{Symbol, AbstractArray, Function} = :end,
 )
-    # if data is a string, read the data out from data (creates data `vardata` from `var` whether var is string or already is data)
+    # if var is a string, read the data out from data (creates data `vardata` from `var` whether var is string or already is data)
     vardata = isa(var, String) ? data[var] : var
     vardatag = isa(varg, String) ? data[varg] : varg
     concat_dim = isa(concat_dim, String) ? get_dim_num(concat_dim, vardata) : concat_dim # string to numbers
@@ -549,25 +549,37 @@ end
 
 get the dimension number of dim from nc_data
 """
-function get_dim_num(dim, nc_data = nothing)
-
-    # convert interp_dim to a number stored in interp_dim_num
-    if isa(dim, Number) # already a string, just returns...
-        dim_num = dim
-    elseif isa(dim, String)
-        if isa(nc_data, NC.CFVariable) # allow finding the number from an ncdataset and a string
-            dimnames = NC.dimnames(nc_data)
-            dim_num = findfirst(x -> x == dim, dimnames)
-        elseif isa(nc_data, NC.NCDataset)
-            @warn("dimension number for a dataset is not well defined, use a speciifc NC.CFVariable instead")
-        elseif isa(nc_data, AbstractArray)
-            error("cannot find dimension $(dim) in unlabeled data nc_data, pass in a labeled NCDataset instead...")
-        else
-            error("unsupported input type for nc_data $(typeof(nc_data))")
-        end
-    end
+get_dim_num(dim::Number, nc_data) = dim
+function get_dim_num(dim::String, nc_data::NC.CFVariable)
+    dimnames = NC.dimnames(nc_data)
+    dim_num = findfirst(x -> x == dim, dimnames)
     return dim_num
 end
+get_dim_num(dim::String, nc_data::NC.NCDataset) =
+    error("dimension number for a dataset is not well defined, use a speciifc NC.CFVariable instead")
+get_dim_num(dim::String, nc_data::AbstractArray) =
+    error("cannot find dimension $(dim) in unlabeled data nc_data, pass in a labeled NCDataset instead...")
+get_dim_num(dim::String, nc_data) = error("unsupported input type for nc_data $(typeof(nc_data))")
+
+# function get_dim_num(dim, nc_data = nothing)
+
+#     # convert interp_dim to a number stored in interp_dim_num
+#     if isa(dim, Number) # already a string, just returns...
+#         dim_num = dim
+#     elseif isa(dim, String)
+#         if isa(nc_data, NC.CFVariable) # allow finding the number from an ncdataset and a string
+#             dimnames = NC.dimnames(nc_data)
+#             dim_num = findfirst(x -> x == dim, dimnames)
+#         elseif isa(nc_data, NC.NCDataset)
+#             @warn("dimension number for a dataset is not well defined, use a speciifc NC.CFVariable instead")
+#         elseif isa(nc_data, AbstractArray)
+#             error("cannot find dimension $(dim) in unlabeled data nc_data, pass in a labeled NCDataset instead...")
+#         else
+#             error("unsupported input type for nc_data $(typeof(nc_data))")
+#         end
+#     end
+#     return dim_num
+# end
 
 
 
@@ -592,16 +604,16 @@ To Do : decide types
 """
 function interp_along_dim(
     var,
-    interp_dim,
+    interp_dim::Union{String, Int},
     interp_dim_in;
     interp_dim_out = nothing,
     data = nothing,
-    data_func = nothing,
-    interp_dim_in_is_full_array = true,
-    reshape_ground = true,
-    verbose = false,
-    interp_method = :Spline1D,
-    interp_kwargs = Dict{Symbol, Any}(),
+    data_func::Union{Function, Nothing} = nothing,
+    interp_dim_in_is_full_array::Bool = true,
+    reshape_ground::Bool = true,
+    verbose::Bool = false,
+    interp_method::Symbol = :Spline1D,
+    interp_kwargs::Dict = Dict{Symbol, Any}(),
 )
     # would use kwargs but doesn't play nice w/ ODE solver for some reason... instead we get out the parameters we want explicitly and pass them all the time (splatting gives a union typle type object that apparently can't be handled?)
     f_enhancement_factor = get(interp_kwargs, :f_enhancement_factor, 1) # default to 1.0
@@ -627,9 +639,41 @@ function interp_along_dim(
     if !interp_dim_in_is_full_array
         if isnothing(interp_dim_out)
             return mapslices(
-                d ->
-                    dd -> pyinterp(
-                        dd,
+                let interp_dim_in = interp_dim_in,
+                    interp_method = interp_method,
+                    f_enhancement_factor = f_enhancement_factor,
+                    f_p_enhancement_factor = f_p_enhancement_factor,
+                    bc = bc,
+                    k = k
+                    # let block for performance of captured variables
+                    d -> let d = d
+                        dd -> pyinterp(
+                            dd,
+                            interp_dim_in,
+                            d;
+                            method = interp_method,
+                            f_enhancement_factor = f_enhancement_factor,
+                            f_p_enhancement_factor = f_p_enhancement_factor,
+                            bc = bc,
+                            k = k,
+                        )
+                    end
+                end,
+                vardata,
+                dims = [interp_dim_num],
+            ) # will return a lambda fcn that can be evaluated along that dimensoin
+        else
+            return mapslices(
+                let interp_dim_out = interp_dim_out,
+                    interp_dim_in = interp_dim_in,
+                    interp_method = interp_method,
+                    f_enhancement_factor = f_enhancement_factor,
+                    f_p_enhancement_factor = f_p_enhancement_factor,
+                    bc = bc,
+                    k = k
+                    # let block for performance of captured variables
+                    d -> pyinterp(
+                        interp_dim_out,
                         interp_dim_in,
                         d;
                         method = interp_method,
@@ -637,22 +681,8 @@ function interp_along_dim(
                         f_p_enhancement_factor = f_p_enhancement_factor,
                         bc = bc,
                         k = k,
-                    ),
-                vardata,
-                dims = [interp_dim_num],
-            ) # will return a lambda fcn that can be evaluated along that dimensoin
-        else
-            return mapslices(
-                d -> pyinterp(
-                    interp_dim_out,
-                    interp_dim_in,
-                    d;
-                    method = interp_method,
-                    f_enhancement_factor = f_enhancement_factor,
-                    f_p_enhancement_factor = f_p_enhancement_factor,
-                    bc = bc,
-                    k = k,
-                ),
+                    )
+                end,
                 vardata,
                 dims = [interp_dim_num],
             ) # lambda fcn will evaluate
@@ -664,17 +694,25 @@ function interp_along_dim(
         if isnothing(interp_dim_out)
             return dropdims(
                 mapslices(
-                    d ->
-                        dd -> pyinterp(
-                            dd,
-                            d[:, 1],
-                            d[:, 2];
-                            method = interp_method,
-                            f_enhancement_factor = f_enhancement_factor,
-                            f_p_enhancement_factor = f_p_enhancement_factor,
-                            bc = bc,
-                            k = k,
-                        ),
+                    let interp_method = interp_method,
+                        f_enhancement_factor = f_enhancement_factor,
+                        f_p_enhancement_factor = f_p_enhancement_factor,
+                        bc = bc,
+                        k = k
+                        # let block for performance of captured variables
+                        d -> let d = d
+                            dd -> pyinterp(
+                                dd,
+                                d[:, 1],
+                                d[:, 2];
+                                method = interp_method,
+                                f_enhancement_factor = f_enhancement_factor,
+                                f_p_enhancement_factor = f_p_enhancement_factor,
+                                bc = bc,
+                                k = k,
+                            )
+                        end
+                    end,
                     _input,
                     dims = [interp_dim_num, catd],
                 );
@@ -683,16 +721,24 @@ function interp_along_dim(
         else
             return dropdims(
                 mapslices(
-                    d -> pyinterp(
-                        interp_dim_out,
-                        d[:, 1],
-                        d[:, 2];
-                        method = interp_method,
+                    let interp_dim_out = interp_dim_out,
+                        interp_method = interp_method,
                         f_enhancement_factor = f_enhancement_factor,
                         f_p_enhancement_factor = f_p_enhancement_factor,
                         bc = bc,
-                        k = k,
-                    ),
+                        k = k
+                        # let block for performance of captured variables
+                        d -> pyinterp(
+                            interp_dim_out,
+                            d[:, 1],
+                            d[:, 2];
+                            method = interp_method,
+                            f_enhancement_factor = f_enhancement_factor,
+                            f_p_enhancement_factor = f_p_enhancement_factor,
+                            bc = bc,
+                            k = k,
+                        )
+                    end,
                     _input,
                     dims = [interp_dim_num, catd],
                 );
@@ -734,12 +780,13 @@ if coord_new is nothing, then will return functions...
 function var_to_new_coord(
     var,
     coord_in,
-    interp_dim;
+    interp_dim::Union{String, Number},
+    ;
     coord_new = nothing,
     data = nothing,
-    data_func = nothing,
-    interp_method = :Spline1D,
-    interp_kwargs = Dict{Symbol, Any}(),
+    data_func::Union{Function, Nothing} = nothing,
+    interp_method::Symbol = :Spline1D,
+    interp_kwargs::Dict = Dict{Symbol, Any}(),
 )
     vardata = isa(var, String) ? data[var] : var
     if ~isnothing(data)
@@ -772,19 +819,19 @@ to vectorize properly over z_new, it should be the same shape as vardata+vardata
 function get_data_new_z_t(
     var,
     z_new,
-    z_dim,
-    time_dim,
-    flight_number;
-    thermo_params,
+    z_dim::Union{String, Number},
+    time_dim::Union{String, Number},
+    flight_number::Int;
+    thermo_params::TDPS,
     varg = nothing,
     z_old = nothing,
     t_old = nothing,
     data = nothing,
-    initial_condition = false,
-    assume_monotonic = false,
-    interp_method = :Spline1D,
-    Spline1D_interp_kwargs = Dict{Symbol, Any}(),
-    pchip_interp_kwargs = Dict{Symbol, Any}(),
+    initial_condition::Bool = false,
+    assume_monotonic::Bool = false,
+    interp_method::Symbol = :Spline1D,
+    Spline1D_interp_kwargs::Dict = Dict{Symbol, Any}(),
+    pchip_interp_kwargs::Dict = Dict{Symbol, Any}(),
     ground_indices = :end,
 )
 
@@ -935,7 +982,7 @@ function calc_qg_extrapolate_pq(pg, p, q; interp_method = :Spline1D, interp_kawr
     return qg
 end
 
-function calc_qg_from_pgTg(pg, Tg, thermo_params)
+function calc_qg_from_pgTg(pg, Tg, thermo_params::TDPS)
     ρg = TD.air_density(thermo_params, Tg, pg) # original T?
     qg = TD.q_vap_saturation_generic(thermo_params, Tg, ρg, TD.Liquid()) # surface specific humidity over liquid
     return qg

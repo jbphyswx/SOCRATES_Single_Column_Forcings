@@ -92,7 +92,7 @@ SOCRATES_flight_observations_Box_links = Dict( # The raw observational data from
     These all have the same fiilename so we have to manually append the flight number to the filename
 
 """
-function download_atlas_les_outputs(; cases = cases)
+function download_atlas_les_outputs(; cases::AbstractArray{Int} = cases, forcing_type::Symbol = :obs_data)
 
     # create joinpath(thisdir, "Output_Data") if doesn't exist
     if !isdir(joinpath(thisdir, "Output_Data"))
@@ -106,23 +106,27 @@ function download_atlas_les_outputs(; cases = cases)
         ERA5_filename = RF_num * "_output/era5/SOCRATES_128x128_100m_10s_rad10_vg_M2005_aj.nc" # e.g. https://atmos.uw.edu/~ratlas/RF12_output/era5/SOCRATES_128x128_100m_10s_rad10_vg_M2005_aj.nc
 
         # download obs model output
-        try
-            obs_savepath = joinpath(thisdir, "Output_Data", RF_num * "_Obs_" * split(obs_filename, "/")[end]) # just the filename, not any paths
-            download("https://atmos.uw.edu/~ratlas/" * obs_filename, obs_savepath)
-            @info "Found $("https://atmos.uw.edu/~ratlas/"*obs_filename)"
-        catch e
-            @warn "Did not find $("https://atmos.uw.edu/~ratlas/"*obs_filename)"
-            # @warn e
-        end
 
-        # download ERA5 forcing
-        try
-            ERA5_savepath = joinpath(thisdir, "Output_Data", RF_num * "_ERA5_" * split(ERA5_filename, "/")[end]) # just the filename, not any paths
-            download("https://atmos.uw.edu/~ratlas/" * ERA5_filename, ERA5_savepath)
-            @info "Found $("https://atmos.uw.edu/~ratlas/"*ERA5_filename)"
-        catch e
-            @warn "Did not find $("https://atmos.uw.edu/~ratlas/"*ERA5_filename)"
-            # @warn e
+        if forcing_type == :obs_data
+            try
+                obs_savepath = joinpath(thisdir, "Output_Data", RF_num * "_Obs_" * split(obs_filename, "/")[end]) # just the filename, not any paths
+                download("https://atmos.uw.edu/~ratlas/" * obs_filename, obs_savepath)
+                @info "Found $("https://atmos.uw.edu/~ratlas/"*obs_filename)"
+            catch e
+                @warn "Did not find $("https://atmos.uw.edu/~ratlas/"*obs_filename)"
+                # @warn e
+            end
+
+        elseif forcing_type == :ERA5_data
+            # download ERA5 forcing
+            try
+                ERA5_savepath = joinpath(thisdir, "Output_Data", RF_num * "_ERA5_" * split(ERA5_filename, "/")[end]) # just the filename, not any paths
+                download("https://atmos.uw.edu/~ratlas/" * ERA5_filename, ERA5_savepath)
+                @info "Found $("https://atmos.uw.edu/~ratlas/"*ERA5_filename)"
+            catch e
+                @warn "Did not find $("https://atmos.uw.edu/~ratlas/"*ERA5_filename)"
+                # @warn e
+            end
         end
     end
 end

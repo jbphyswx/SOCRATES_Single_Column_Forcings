@@ -6,17 +6,6 @@ Read LES output file instead of the forcing input to set things
 
 
 
-# function read_LES_output(
-#     flight_number::Int;
-#     forcing_type::Symbol = :obs_data,
-# )
-
-#     LES_data = open_atlas_les_output(flight_number)[forcing_type]
-
-# end
-
-
-
 
 """
 This function is for reading things from LES since they don't have the same time setup and already have a z (which should match our desired output)
@@ -25,26 +14,26 @@ LES data only has dimensions (time, z), no lev etc, but we keepthe syntax the sa
 function get_data_new_z_t_LES(
     var,
     z_new, # you'd htink this would be the same as our desired output z, but RF09 was run on a taller grid for some reason
-    z_dim,
-    time_dim,
-    flight_number;
-    thermo_params,
+    z_dim::Union{Int, String},
+    time_dim::Union{Int, String},
+    flight_number::Int,
+    forcing_type::Symbol;
     varg = nothing,
     z_old = nothing,
     t_old = nothing,
     data = nothing,
-    initial_condition = false,
-    assume_monotonic = false,
-    interp_method = :Spline1D,
-    Spline1D_interp_kwargs = Dict{Symbol, Any}(:bc => "extrapolate"), # default to extrapolate bc RF09 was run on a different grid for some reason, we're not necessarily guaranteed to have the same z
-    pchip_interp_kwargs = Dict{Symbol, Any}(:bc => "extrapolate"),
+    initial_condition::Bool = false,
+    assume_monotonic::Bool = false,
+    interp_method::Symbol = :Spline1D,
+    Spline1D_interp_kwargs::Dict = Dict{Symbol, Any}(:bc => "extrapolate"), # default to extrapolate bc RF09 was run on a different grid for some reason, we're not necessarily guaranteed to have the same z
+    pchip_interp_kwargs::Dict = Dict{Symbol, Any}(:bc => "extrapolate"),
     ground_indices = :end,
 )
 
 
 
     if isa(var, String) && isnothing(data)
-        data = open_atlas_les_output(flight_number)[forcing_type]
+        data = open_atlas_les_output(flight_number, forcing_type)[forcing_type]
     end
 
     # get the data and dimensions we're working on,
